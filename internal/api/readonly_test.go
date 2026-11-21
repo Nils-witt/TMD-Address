@@ -22,9 +22,19 @@ const (
 	trustedPeer          = "10.1.2.3:4567"
 )
 
-// readOnlyTestHandler is the auth chain of NewHandler around a handler that
-// answers 200 with the principal's subject in X-Subject.
-func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, func(aud string) string) {
+// testSigner signs a token claiming issuer iss for aud with key.
+type testSigner func(iss string, key *rsa.PrivateKey, aud string) string
+
+// readOnlyTestIssuers are the providers of readOnlyTestHandler: main is
+// OIDC_ISSUER_URL, readOnly one of OIDC_READONLY_ISSUER_URLS, each with its
+// own key as in Authentik.
+type readOnlyTestIssuers struct {
+	main, readOnly       string
+	mainKey, readOnlyKey *rsa.PrivateKey
+	sign                 testSigner
+}
+
+func newTestKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -32,10 +42,20 @@ func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, fun
 		t.Fatal(err)
 	}
 
-	provider := newFakeProvider(t, key)
+	return key
+}
+
+// readOnlyTestHandler is the auth chain of NewHandler around a handler that
+// answers 200 with the principal's subject in X-Subject.
+func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, readOnlyTestIssuers) {
+	t.Helper()
+
+	iss := readOnlyTestIssuers{mainKey: newTestKey(t), readOnlyKey: newTestKey(t)}
+	iss.main = newFakeProvider(t, iss.mainKey).URL
+	iss.readOnly = newFakeProvider(t, iss.readOnlyKey).URL
 
 	oidc, err := NewOIDCVerifier(t.Context(), OIDCConfig{
-		IssuerURL: provider.URL, Audience: testAudience, ReadOnlyAudiences: []string{"", testReadOnlyAudience},
+		IssuerURL: iss.main, Audience: testAudience, ReadOnlyIssuerURLs: []string{"", iss.readOnly},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -47,9 +67,9 @@ func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, fun
 		w.WriteHeader(http.StatusOK)
 	})
 
-	sign := func(aud string) string {
+	iss.sign = func(issuer string, key *rsa.PrivateKey, aud string) string {
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-			issClaim: provider.URL, audClaim: aud, subClaim: testSubject, expClaim: time.Now().Add(time.Hour).Unix(),
+			issClaim: issuer, audClaim: aud, subClaim: testSubject, expClaim: time.Now().Add(time.Hour).Unix(),
 		})
 		token.Header["kid"] = testKID
 
@@ -61,15 +81,19 @@ func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, fun
 		return s
 	}
 
-	return proxyAuthMiddleware(proxy)(authMiddleware(oidc, fakeAPITokens{})(requireReadAccess(inner))), sign
+	return proxyAuthMiddleware(proxy)(authMiddleware(oidc, fakeAPITokens{})(requireReadAccess(inner))), iss
 }
 
-func TestReadOnlyAudience(t *testing.T) {
+func TestReadOnlyIssuer(t *testing.T) {
 	t.Parallel()
 
-	handler, sign := readOnlyTestHandler(t, ProxyAuthConfig{})
+	handler, iss := readOnlyTestHandler(t, ProxyAuthConfig{})
 
-	full, readOnly := sign(testAudience), sign(testReadOnlyAudience)
+	full := iss.sign(iss.main, iss.mainKey, testAudience)
+	readOnly := iss.sign(iss.readOnly, iss.readOnlyKey, testReadOnlyAudience)
+	// A read-only issuer's token for this API's audience stays read-only:
+	// the issuer decides, not the audience.
+	readOnlyForAPI := iss.sign(iss.readOnly, iss.readOnlyKey, testAudience)
 
 	tests := []struct {
 		name, method, path, token string
@@ -90,7 +114,12 @@ func TestReadOnlyAudience(t *testing.T) {
 		{"read-only collectors", http.MethodGet, "/api/collectors", readOnly, http.StatusForbidden},
 		{"read-only path escape", http.MethodGet, "/api/streets/../tokens", readOnly, http.StatusForbidden},
 		{"read-only lookalike prefix", http.MethodGet, "/api/streetsfoo", readOnly, http.StatusForbidden},
-		{"other audience", http.MethodGet, "/api/suggest/streets", sign("other"), http.StatusUnauthorized},
+		{"read-only issuer with api audience writes", http.MethodPost, pathStreets, readOnlyForAPI, http.StatusForbidden},
+		{"read-only issuer with api audience reads", http.MethodGet, pathStreets, readOnlyForAPI, http.StatusOK},
+		{"main issuer other audience", http.MethodGet, "/api/suggest/streets", iss.sign(iss.main, iss.mainKey, "other"), http.StatusUnauthorized},
+		{"main issuer signed by read-only key", http.MethodPost, pathStreets, iss.sign(iss.main, iss.readOnlyKey, testAudience), http.StatusUnauthorized},
+		{"read-only issuer signed by main key", http.MethodGet, pathStreets, iss.sign(iss.readOnly, iss.mainKey, testReadOnlyAudience), http.StatusUnauthorized},
+		{"unknown issuer", http.MethodGet, pathStreets, iss.sign("https://evil.example", iss.mainKey, testAudience), http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -110,12 +139,38 @@ func TestReadOnlyAudience(t *testing.T) {
 	}
 }
 
+func TestNewOIDCVerifierDuplicateReadOnlyIssuer(t *testing.T) {
+	t.Parallel()
+
+	main := newFakeProvider(t, newTestKey(t)).URL
+	other := newFakeProvider(t, newTestKey(t)).URL
+
+	tests := []struct {
+		name    string
+		readers []string
+	}{
+		{"main issuer", []string{main}},
+		{"twice", []string{other, other}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewOIDCVerifier(t.Context(), OIDCConfig{IssuerURL: main, Audience: testAudience, ReadOnlyIssuerURLs: tt.readers})
+			if err == nil {
+				t.Fatal("want an error for a duplicate issuer")
+			}
+		})
+	}
+}
+
 func TestProxyAuth(t *testing.T) {
 	t.Parallel()
 
 	const header, dn = "X-SSL-Client-DN", "CN=alice,O=Example"
 
-	handler, sign := readOnlyTestHandler(t, ProxyAuthConfig{
+	handler, iss := readOnlyTestHandler(t, ProxyAuthConfig{
 		Header:         header,
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("::1/128")},
 	})
@@ -130,7 +185,7 @@ func TestProxyAuth(t *testing.T) {
 		{"trusted proxy is read-only", http.MethodPost, pathStreets, trustedPeer, dn, "", http.StatusForbidden, ""},
 		{"untrusted peer", http.MethodGet, pathCities, "192.0.2.1:4567", dn, "", http.StatusUnauthorized, ""},
 		{"no client named", http.MethodGet, pathCities, trustedPeer, "  ", "", http.StatusUnauthorized, ""},
-		{"bearer token wins", http.MethodPost, pathStreets, trustedPeer, dn, sign(testAudience), http.StatusOK, testSubject},
+		{"bearer token wins", http.MethodPost, pathStreets, trustedPeer, dn, iss.sign(iss.main, iss.mainKey, testAudience), http.StatusOK, testSubject},
 	}
 
 	for _, tt := range tests {

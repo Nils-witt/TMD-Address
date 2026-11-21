@@ -1870,8 +1870,8 @@ components:
         provider's JWKS, issuer and audience, or an API token (starting with
         `asv_`) created at /api/tokens.
 
-        A JWT for one of OIDC_READONLY_AUDIENCES instead of OIDC_AUDIENCE is
-        read-only: it may only GET /healthz and the address lookups
+        A JWT issued by one of OIDC_READONLY_ISSUER_URLS, whatever its
+        audience, is read-only: it may only GET /healthz and the address lookups
         (/api/streets, /api/house-numbers, /api/cities, /api/districts,
         /api/geo-objects, /api/reverse, /api/addresses/search, /api/suggest
         and the routes below them); anything else answers 403. So is a

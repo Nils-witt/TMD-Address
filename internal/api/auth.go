@@ -34,7 +34,7 @@ type principal struct {
 	// Claims are the verified claims of an OIDC token; nil for API tokens.
 	Claims jwt.MapClaims
 	// ReadOnly principals may only look addresses up (see readOnlyRoutes):
-	// OIDC tokens for a read-only audience, and clients a trusted proxy
+	// OIDC tokens from a read-only issuer, and clients a trusted proxy
 	// authenticated.
 	ReadOnly bool
 }
@@ -73,6 +73,12 @@ func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator) func(h
 				p, err = apiTokenPrincipal(r.Context(), tokens, tokenString)
 			} else {
 				p, err = oidcPrincipal(verifier, tokenString)
+				// The response does not say why a token was rejected, so the
+				// log has to, or a misconfigured issuer or audience looks
+				// like any bad token. Expiry is routine and left out.
+				if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
+					log.Printf("OIDC token rejected: %v", err)
+				}
 			}
 
 			if err != nil {

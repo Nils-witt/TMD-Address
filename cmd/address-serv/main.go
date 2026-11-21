@@ -196,10 +196,10 @@ func oidcVerifier(ctx context.Context) (*api.OIDCVerifier, error) {
 	}
 
 	verifier, err := api.NewOIDCVerifier(ctx, api.OIDCConfig{
-		IssuerURL:         issuer,
-		Audience:          os.Getenv("OIDC_AUDIENCE"),
-		ReadOnlyAudiences: splitList(os.Getenv("OIDC_READONLY_AUDIENCES")),
-		JWKSURL:           os.Getenv("OIDC_JWKS_URL"),
+		IssuerURL:          issuer,
+		Audience:           os.Getenv("OIDC_AUDIENCE"),
+		ReadOnlyIssuerURLs: splitList(os.Getenv("OIDC_READONLY_ISSUER_URLS")),
+		JWKSURL:            os.Getenv("OIDC_JWKS_URL"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up OIDC: %w", err)

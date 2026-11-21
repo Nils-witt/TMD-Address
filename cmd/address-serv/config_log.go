@@ -51,7 +51,7 @@ func configEntries() []configEntry {
 		{key: "POSTGRES_SSLMODE", def: defaultPostgresSSLMode},
 		{key: "OIDC_ISSUER_URL"},
 		{key: "OIDC_AUDIENCE"},
-		{key: "OIDC_READONLY_AUDIENCES"},
+		{key: "OIDC_READONLY_ISSUER_URLS"},
 		{key: "OIDC_JWKS_URL", def: "from OpenID discovery"},
 		{key: "OIDC_CLIENT_ID", def: "OIDC_AUDIENCE"},
 		{key: "OIDC_SCOPE", def: defaultOIDCScope},
