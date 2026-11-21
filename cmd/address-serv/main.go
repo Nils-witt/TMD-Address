@@ -43,6 +43,7 @@ func run() error {
 	}
 
 	log.Printf("address-serv %s (%s)", version, commit)
+	logConfig()
 
 	ctx := context.Background()
 
@@ -80,7 +81,7 @@ func run() error {
 		api.Config{
 			OIDC:              oidc,
 			ProxyAuth:         proxyAuth,
-			CORSAllowedOrigin: getenvDefault("CORS_ALLOWED_ORIGIN", "*"),
+			CORSAllowedOrigin: getenvDefault("CORS_ALLOWED_ORIGIN", defaultCORSAllowedOrigin),
 			Suggest:           store.NewSuggestStore(db),
 			UI:                ui,
 			UIConfig:          uiConfig(),
@@ -93,7 +94,7 @@ func run() error {
 		store.NewAPITokenStore(db),
 	)
 
-	addr := getenvDefault("LISTEN_ADDR", ":8080")
+	addr := getenvDefault("LISTEN_ADDR", defaultListenAddr)
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -165,16 +166,16 @@ func collectorConfig() (collector.Config, error) {
 
 	var err error
 
-	if cfg.Timeout, err = time.ParseDuration(getenvDefault("COLLECTOR_TIMEOUT", "10m")); err != nil || cfg.Timeout <= 0 {
+	if cfg.Timeout, err = time.ParseDuration(getenvDefault("COLLECTOR_TIMEOUT", defaultCollectorTimeout)); err != nil || cfg.Timeout <= 0 {
 		return collector.Config{}, errors.New("COLLECTOR_TIMEOUT must be a positive duration such as 10m")
 	}
 
-	cfg.GeoMaxDistanceMeters, err = strconv.ParseFloat(getenvDefault("COLLECTOR_GEO_MAX_DISTANCE_M", "100"), 64)
+	cfg.GeoMaxDistanceMeters, err = strconv.ParseFloat(getenvDefault("COLLECTOR_GEO_MAX_DISTANCE_M", defaultCollectorGeoMaxM), 64)
 	if err != nil || cfg.GeoMaxDistanceMeters < 0 {
 		return collector.Config{}, errors.New("COLLECTOR_GEO_MAX_DISTANCE_M must be a non-negative number of metres")
 	}
 
-	if cfg.RunHistory, err = strconv.Atoi(getenvDefault("COLLECTOR_RUN_HISTORY", "50")); err != nil || cfg.RunHistory < 1 {
+	if cfg.RunHistory, err = strconv.Atoi(getenvDefault("COLLECTOR_RUN_HISTORY", defaultCollectorRuns)); err != nil || cfg.RunHistory < 1 {
 		return collector.Config{}, errors.New("COLLECTOR_RUN_HISTORY must be a positive integer")
 	}
 
@@ -245,7 +246,7 @@ func uiConfig() api.UIConfig {
 		OIDC: api.UIOIDCConfig{
 			Issuer:   os.Getenv("OIDC_ISSUER_URL"),
 			ClientID: getenvDefault("OIDC_CLIENT_ID", os.Getenv("OIDC_AUDIENCE")),
-			Scope:    getenvDefault("OIDC_SCOPE", "openid profile email"),
+			Scope:    getenvDefault("OIDC_SCOPE", defaultOIDCScope),
 		},
 		Version: version,
 		Commit:  commit,
@@ -260,12 +261,12 @@ func databaseURL() string {
 		return dsn
 	}
 
-	host := getenvDefault("POSTGRES_HOST", "localhost")
-	port := getenvDefault("POSTGRES_PORT", "5432")
-	user := getenvDefault("POSTGRES_USER", "address_serv")
-	password := getenvDefault("POSTGRES_PASSWORD", "address_serv")
-	dbname := getenvDefault("POSTGRES_DB", "address_serv")
-	sslmode := getenvDefault("POSTGRES_SSLMODE", "disable")
+	host := getenvDefault("POSTGRES_HOST", defaultPostgresHost)
+	port := getenvDefault("POSTGRES_PORT", defaultPostgresPort)
+	user := getenvDefault("POSTGRES_USER", defaultPostgresUser)
+	password := getenvDefault("POSTGRES_PASSWORD", defaultPostgresPassword)
+	dbname := getenvDefault("POSTGRES_DB", defaultPostgresDB)
+	sslmode := getenvDefault("POSTGRES_SSLMODE", defaultPostgresSSLMode)
 
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, password, host, port, dbname, sslmode)
 }
