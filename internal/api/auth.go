@@ -33,6 +33,10 @@ type principal struct {
 	APITokenID *uuid.UUID
 	// Claims are the verified claims of an OIDC token; nil for API tokens.
 	Claims jwt.MapClaims
+	// ReadOnly principals may only look addresses up (see readOnlyRoutes):
+	// OIDC tokens for a read-only audience, and clients a trusted proxy
+	// authenticated.
+	ReadOnly bool
 }
 
 // principalFrom returns the principal authMiddleware stored in ctx.
@@ -52,6 +56,12 @@ type apiTokenAuthenticator interface {
 func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Authenticated by a trusted proxy already.
+			if _, ok := principalFrom(r.Context()); ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			tokenString, err := bearerToken(r)
 			if err != nil {
 				writeError(w, http.StatusUnauthorized, err.Error())
@@ -77,7 +87,7 @@ func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator) func(h
 }
 
 func oidcPrincipal(verifier *OIDCVerifier, tokenString string) (principal, error) {
-	claims, err := verifier.verify(tokenString)
+	claims, readOnly, err := verifier.verify(tokenString)
 	if err != nil {
 		return principal{}, err
 	}
@@ -86,7 +96,7 @@ func oidcPrincipal(verifier *OIDCVerifier, tokenString string) (principal, error
 	// needs a subject (see requireTokenOwner).
 	sub, _ := claims.GetSubject()
 
-	return principal{Subject: sub, Name: displayName(claims, sub), Claims: claims}, nil
+	return principal{Subject: sub, Name: displayName(claims, sub), Claims: claims, ReadOnly: readOnly}, nil
 }
 
 func apiTokenPrincipal(ctx context.Context, tokens apiTokenAuthenticator, secret string) (principal, error) {

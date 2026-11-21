@@ -15,8 +15,15 @@ import (
 type Config struct {
 	// OIDC verifies bearer tokens issued by an OpenID Connect provider. API
 	// tokens are checked against the APITokenStore passed to NewHandler.
-	OIDC              *OIDCVerifier
+	OIDC *OIDCVerifier
+	// ProxyAuth authenticates the clients a trusted reverse proxy names,
+	// read-only.
+	ProxyAuth ProxyAuthConfig
+	// CORSAllowedOrigin is "*" or a comma-separated list of the origins
+	// allowed to call the API from a browser.
 	CORSAllowedOrigin string
+	// Suggest serves /api/suggest/*. Nil leaves those routes out.
+	Suggest *store.SuggestStore
 	// UI serves the embedded web UI under /ui/. Nil disables the UI routes.
 	UI http.Handler
 	// UIConfig is served to the web UI at GET /ui-config.
@@ -45,6 +52,10 @@ func NewHandler(
 	registerBulkRoutes(mux, bulk)
 	registerAPITokenRoutes(mux, tokens)
 
+	if cfg.Suggest != nil {
+		registerSuggestRoutes(mux, cfg.Suggest, houseNumbers, geoObjects)
+	}
+
 	if cfg.Collectors.Runner != nil {
 		registerCollectorRoutes(mux, cfg.Collectors)
 	}
@@ -67,7 +78,7 @@ func NewHandler(
 		tokenAuth = tokens
 	}
 
-	root.Handle("/", authMiddleware(cfg.OIDC, tokenAuth)(mux))
+	root.Handle("/", proxyAuthMiddleware(cfg.ProxyAuth)(authMiddleware(cfg.OIDC, tokenAuth)(requireReadAccess(mux))))
 
 	// gzip shrinks the unfiltered street list ~5x (833 KB → 156 KB for 5,000
 	// streets) and the UI bundles ~3x; responses under 1 KB, already

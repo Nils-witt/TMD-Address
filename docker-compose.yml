@@ -31,6 +31,11 @@ services:
       OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_SCOPE: ${OIDC_SCOPE:-}
+      # Read-only access for other apps' tokens and an mTLS proxy's clients.
+      OIDC_READONLY_AUDIENCES: ${OIDC_READONLY_AUDIENCES:-}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-*}
+      PROXY_AUTH_HEADER: ${PROXY_AUTH_HEADER:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       # The binary is /address-serv, so its collectors folder is /collectors.
       COLLECTOR_ADMIN_GROUP: ${COLLECTOR_ADMIN_GROUP:-}
       COLLECTOR_TIMEOUT: ${COLLECTOR_TIMEOUT:-10m}

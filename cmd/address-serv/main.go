@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/joho/godotenv"
 
@@ -68,10 +71,17 @@ func run() error {
 		return err
 	}
 
+	proxyAuth, err := proxyAuthConfig()
+	if err != nil {
+		return err
+	}
+
 	handler := api.NewHandler(
 		api.Config{
 			OIDC:              oidc,
+			ProxyAuth:         proxyAuth,
 			CORSAllowedOrigin: getenvDefault("CORS_ALLOWED_ORIGIN", "*"),
+			Suggest:           store.NewSuggestStore(db),
 			UI:                ui,
 			UIConfig:          uiConfig(),
 			Collectors:        collectors,
@@ -180,15 +190,51 @@ func oidcVerifier(ctx context.Context) (*api.OIDCVerifier, error) {
 	}
 
 	verifier, err := api.NewOIDCVerifier(ctx, api.OIDCConfig{
-		IssuerURL: issuer,
-		Audience:  os.Getenv("OIDC_AUDIENCE"),
-		JWKSURL:   os.Getenv("OIDC_JWKS_URL"),
+		IssuerURL:         issuer,
+		Audience:          os.Getenv("OIDC_AUDIENCE"),
+		ReadOnlyAudiences: splitList(os.Getenv("OIDC_READONLY_AUDIENCES")),
+		JWKSURL:           os.Getenv("OIDC_JWKS_URL"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up OIDC: %w", err)
 	}
 
 	return verifier, nil
+}
+
+// proxyAuthConfig reads PROXY_AUTH_HEADER and TRUSTED_PROXIES. The header
+// is only accepted from trusted proxies, so it needs them.
+func proxyAuthConfig() (api.ProxyAuthConfig, error) {
+	cfg := api.ProxyAuthConfig{Header: strings.TrimSpace(os.Getenv("PROXY_AUTH_HEADER"))}
+
+	for _, v := range splitList(os.Getenv("TRUSTED_PROXIES")) {
+		p, err := netip.ParsePrefix(v)
+		if err != nil {
+			a, aerr := netip.ParseAddr(v)
+			if aerr != nil {
+				return api.ProxyAuthConfig{}, fmt.Errorf("TRUSTED_PROXIES: %q is neither an IP address nor a CIDR", v)
+			}
+
+			p = netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen())
+		}
+
+		cfg.TrustedProxies = append(cfg.TrustedProxies, p.Masked())
+	}
+
+	if cfg.Header != "" && len(cfg.TrustedProxies) == 0 {
+		return api.ProxyAuthConfig{}, errors.New("PROXY_AUTH_HEADER requires TRUSTED_PROXIES: the header is only accepted from trusted proxies")
+	}
+
+	if cfg.Header != "" {
+		log.Print("proxy authentication enabled for TRUSTED_PROXIES, read-only")
+	}
+
+	return cfg, nil
+}
+
+// splitList splits a list separated by commas or spaces.
+func splitList(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
 }
 
 // uiConfig describes the OIDC client the web UI signs in with. The client ID

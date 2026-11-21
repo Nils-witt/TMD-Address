@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,11 @@ type OIDCConfig struct {
 	// Audience must be contained in the "aud" claim of accepted tokens,
 	// usually the client ID registered for this API.
 	Audience string
+	// ReadOnlyAudiences are further audiences whose tokens are accepted for
+	// reading addresses only (see readOnlyRoutes): those of other
+	// applications whose users may look addresses up here, such as a
+	// browser app suggesting them, without being able to change them.
+	ReadOnlyAudiences []string
 	// JWKSURL overrides the key set URL found via OpenID discovery.
 	JWKSURL string
 }
@@ -39,8 +45,10 @@ type OIDCConfig struct {
 // OIDCVerifier verifies access and ID tokens against the signing keys
 // published by an OpenID Connect provider.
 type OIDCVerifier struct {
-	keys   keyfunc.Keyfunc
-	parser *jwt.Parser
+	keys              keyfunc.Keyfunc
+	parser            *jwt.Parser
+	audience          string
+	readOnlyAudiences []string
 }
 
 // NewOIDCVerifier resolves the provider's JWKS endpoint (via discovery unless
@@ -72,29 +80,50 @@ func NewOIDCVerifier(ctx context.Context, cfg OIDCConfig) (*OIDCVerifier, error)
 
 	return &OIDCVerifier{
 		keys: keys,
+		// The audience is checked by verify, as a token may be for one of
+		// several.
 		parser: jwt.NewParser(
 			jwt.WithValidMethods(oidcSigningMethods),
 			jwt.WithIssuer(cfg.IssuerURL),
-			jwt.WithAudience(cfg.Audience),
 			jwt.WithExpirationRequired(),
 			jwt.WithLeeway(30*time.Second),
 		),
+		audience:          cfg.Audience,
+		readOnlyAudiences: slices.DeleteFunc(slices.Clone(cfg.ReadOnlyAudiences), func(a string) bool { return a == "" }),
 	}, nil
 }
 
-func (v *OIDCVerifier) verify(tokenString string) (jwt.MapClaims, error) {
+// errWrongAudience is returned for a token for none of the accepted
+// audiences.
+var errWrongAudience = errors.New("token is not for this service")
+
+// verify returns the claims of a valid token, and whether it was issued for
+// a read-only audience only.
+func (v *OIDCVerifier) verify(tokenString string) (jwt.MapClaims, bool, error) {
 	claims := jwt.MapClaims{}
 
 	token, err := v.parser.ParseWithClaims(tokenString, claims, v.keys.Keyfunc)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if !token.Valid {
-		return nil, errors.New("token is not valid")
+		return nil, false, errors.New("token is not valid")
 	}
 
-	return claims, nil
+	aud, err := claims.GetAudience()
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch {
+	case slices.Contains(aud, v.audience):
+		return claims, false, nil
+	case slices.ContainsFunc(aud, func(a string) bool { return slices.Contains(v.readOnlyAudiences, a) }):
+		return claims, true, nil
+	default:
+		return nil, false, errWrongAudience
+	}
 }
 
 // discoverJWKSURL fetches the provider's OpenID configuration document and

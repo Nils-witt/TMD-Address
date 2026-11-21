@@ -19,6 +19,11 @@ tags:
   - name: house-numbers
   - name: geo-objects
   - name: geocoding
+  - name: suggest
+    description: >-
+      What an address form suggests while it is typed into, ranked and
+      bounded for that, one request per field. Read-only tokens may call
+      them.
   - name: bulk
   - name: api-tokens
   - name: collectors
@@ -1083,6 +1088,223 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/suggest/streets:
+    get:
+      summary: Suggest streets
+      description: >-
+        The streets whose name contains `name`, at most 25. Those whose name starts with the typed text come first, then by name, case-insensitively. The typed text matches literally (% and _ are no wildcards). Empty while `name` is shorter than 2 characters.
+      operationId: suggestStreets
+      tags: [suggest]
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The text typed into the street field
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this city (in full, ignoring case)
+        - name: district
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this district (in full, ignoring case)
+      responses:
+        "200":
+          description: The suggestions, best first; an empty array if none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StreetSuggestion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/suggest/house-numbers:
+    get:
+      summary: Suggest the house numbers of a street
+      description: >-
+        The house numbers of the streets named `street` exactly (ignoring case), in numeric order and each number once, at most 500. A name can be a street in several districts or cities: the numbers of the first 5 are merged. Empty without `street`.
+      operationId: suggestHouseNumbers
+      tags: [suggest]
+      parameters:
+        - name: street
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The street filled in
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this city (in full, ignoring case)
+        - name: district
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this district (in full, ignoring case)
+      responses:
+        "200":
+          description: The suggestions, best first; an empty array if none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HouseNumberSuggestion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/suggest/cities:
+    get:
+      summary: Suggest cities
+      description: >-
+        The cities whose name contains `name`, every city while it is empty, at most 25. Those whose name starts with the typed text come first, then by name, case-insensitively. The typed text matches literally (% and _ are no wildcards).
+      operationId: suggestCities
+      tags: [suggest]
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The text typed into the city field
+      responses:
+        "200":
+          description: The suggestions, best first; an empty array if none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/suggest/districts:
+    get:
+      summary: Suggest districts
+      description: >-
+        The districts whose name contains `name`, at most 25. Those whose name starts with the typed text come first, then by name, case-insensitively. The typed text matches literally (% and _ are no wildcards).
+      operationId: suggestDistricts
+      tags: [suggest]
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The text typed into the district field
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only districts of this city (in full, ignoring case)
+      responses:
+        "200":
+          description: The suggestions, best first; an empty array if none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/District"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/suggest/geo-objects:
+    get:
+      summary: Suggest geo objects with their address
+      description: >-
+        The geo objects whose name contains `name`, each with its street and house number, at most 25. Those whose name starts with the typed text come first, then by name, case-insensitively. The typed text matches literally (% and _ are no wildcards). Empty while `name` is shorter than 2 characters.
+      operationId: suggestGeoObjects
+      tags: [suggest]
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The text typed into the object field
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this city (in full, ignoring case)
+        - name: district
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Only on streets in this district (in full, ignoring case)
+      responses:
+        "200":
+          description: The suggestions, best first; an empty array if none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeoObjectSuggestion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/suggest/reverse:
+    get:
+      summary: Suggest the places near a coordinate
+      description: >-
+        Like /api/reverse, the house numbers and the geo objects nearest to
+        the coordinate, each nearest first, but with their addresses
+        flattened like the other suggestions. limit is at most 20.
+      operationId: suggestReverse
+      tags: [suggest]
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 1
+          description: Number of nearest house numbers, and of nearest geo objects, to return
+      responses:
+        "200":
+          description: The nearest addresses and geo objects, each nearest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestReverseResult"
+        "400":
+          description: Missing or invalid lat, lon or limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/tokens:
     get:
       summary: List your API tokens
@@ -1630,6 +1852,14 @@ components:
         issued by the configured OpenID Connect provider, checked against the
         provider's JWKS, issuer and audience, or an API token (starting with
         `asv_`) created at /api/tokens.
+
+        A JWT for one of OIDC_READONLY_AUDIENCES instead of OIDC_AUDIENCE is
+        read-only: it may only GET /healthz and the address lookups
+        (/api/streets, /api/house-numbers, /api/cities, /api/districts,
+        /api/geo-objects, /api/reverse, /api/addresses/search, /api/suggest
+        and the routes below them); anything else answers 403. So is a
+        request without a token from one of TRUSTED_PROXIES that names its
+        client in PROXY_AUTH_HEADER, such as a proxy terminating mTLS.
 
   schemas:
     District:
@@ -2275,6 +2505,79 @@ components:
             running, it holds the output so far, saved every few seconds. Only
             returned for a single run.
 
+    StreetSuggestion:
+      type: object
+      required: [name, district, city, country, latitude, longitude]
+      properties:
+        name: {type: string}
+        district: {type: string}
+        city: {type: string}
+        country: {type: string}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+    HouseNumberSuggestion:
+      type: object
+      required: [number, postcode, latitude, longitude]
+      properties:
+        number:
+          type: string
+          description: The number with its addition
+          example: 12a
+        postcode: {type: string}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+    GeoObjectSuggestion:
+      type: object
+      required: [name, group, street, house_number, postcode, district, city, country, latitude, longitude]
+      properties:
+        name: {type: string}
+        group: {type: string}
+        street: {type: string}
+        house_number:
+          type: string
+          description: The number with its addition; empty if the object has none
+        postcode:
+          type: string
+          description: The house number's; empty if the object has none
+        district: {type: string}
+        city: {type: string}
+        country: {type: string}
+        latitude:
+          type: number
+          format: double
+          description: The object's own position
+        longitude: {type: number, format: double}
+    SuggestReverseResult:
+      type: object
+      required: [addresses, geo_objects]
+      properties:
+        addresses:
+          type: array
+          items:
+            type: object
+            required: [street, house_number, postcode, district, city, country, latitude, longitude, distance_meters]
+            properties:
+              street: {type: string}
+              house_number: {type: string}
+              postcode: {type: string}
+              district: {type: string}
+              city: {type: string}
+              country: {type: string}
+              latitude: {type: number, format: double}
+              longitude: {type: number, format: double}
+              distance_meters: {type: number, format: double}
+        geo_objects:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/GeoObjectSuggestion"
+              - type: object
+                required: [distance_meters]
+                properties:
+                  distance_meters:
+                    type: number
+                    format: double
+                    description: Measured to the object's own position
     Error:
       type: object
       required: [error]
