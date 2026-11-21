@@ -61,5 +61,6 @@ jobs:
           build-args: |
             COMMIT=${{ github.event.pull_request.head.sha || github.sha }}
             BRANCH=${{ github.head_ref || github.ref_name }}
+            BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

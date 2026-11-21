@@ -8,7 +8,7 @@ An address lookup and management service: streets, house numbers and geo objects
 
 - `cmd/address-serv/main.go`: entrypoint. Reads env (and `.env` via godotenv), sets up OIDC, opens the DB, runs migrations, wires the stores into `api.NewHandler`.
 - `internal/api/`: HTTP layer on stdlib `net/http` `ServeMux` with method patterns (`"GET /api/..."`). Each resource has a `registerXRoutes(mux, store)` file. `api.go` builds the middleware chain: logging → gzip → CORS → auth.
-  - `auth.go`: every route except `/docs`, `/ui*`, `/ui-config` needs `Authorization: Bearer <token>`. That token is either an OIDC JWT (`oidc.go`) or an API token, recognised by `store.APITokenPrefix`.
+  - `auth.go`: every route except `/docs`, `/ui*`, `/ui-config`, `/api/version` needs `Authorization: Bearer <token>`. That token is either an OIDC JWT (`oidc.go`) or an API token, recognised by `store.APITokenPrefix`.
   - `readonly.go`: read-only principals (`principal.ReadOnly`): OIDC JWTs for one of `OIDC_READONLY_AUDIENCES` instead of `OIDC_AUDIENCE`, and requests without a token that a trusted proxy names in `PROXY_AUTH_HEADER` (from `TRUSTED_PROXIES` only; e.g. an mTLS proxy). `requireReadAccess` lets them GET only `/healthz` and the lookups in `readOnlyRoutes`, 403 otherwise. Universam's SPA calls address-serv this way.
   - `suggest.go`: `/api/suggest/*`, what an address form suggests while typed into (prefix first, bounded, one request per field; `store.SuggestStore`), and `/api/suggest/reverse`, the nearest places flattened. Their snake_case JSON is what Universam's SPA (`frontend/src/api/address.ts`) reads.
   - `openapi.yaml`: the API spec, embedded and served at `/docs`. **This is the source of truth.** The root-level `openapi.yaml` is obsolete.
@@ -57,5 +57,5 @@ The husky pre-commit hook runs golangci-lint and govulncheck when they are insta
 - `SkipDefaultTransaction` is on. Any write that needs more than one statement must run in an explicit `db.Transaction`.
 - Schema changes go into `Migrate`, which must stay idempotent (`IF NOT EXISTS`, and safe on existing databases holding data). For a new uniqueness rule, follow `migrateGeoObjectGroupNameKey`: report the conflicting rows clearly rather than failing with a terse SQL error.
 - golangci-lint is strict (`.golangci.yml`: wsl_v5, godot, funlen, gocyclo, dupl, gosec, …). Exported identifiers need doc comments that end with a period. Comments explain *why*, as the existing code does.
-- Build info (`version`, `commit`, `branch`) is injected with `-ldflags -X main.…` in the Dockerfile and `.goreleaser.yml`.
+- Build info (`version`, `commit`, `branch`, `buildTime`) is injected with `-ldflags -X main.…` in the Dockerfile and `.goreleaser.yml`; `internal/buildinfo` fills empty values from the embedded VCS data. `GET /api/version` serves it in the same shape as the api's.
 - Configuration comes only from environment variables. Document each new one in `.env.example` and `docker-compose.yml`.

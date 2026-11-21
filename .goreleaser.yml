@@ -26,6 +26,7 @@ builds:
       - -X main.version={{ .Version }}
       - -X main.commit={{ .Commit }}
       - -X main.branch={{ .Branch }}
+      - -X main.buildTime={{ .Date }}
 
 archives:
   - formats: [binary]

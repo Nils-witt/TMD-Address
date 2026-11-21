@@ -11,12 +11,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /src/frontend/dist ./frontend/dist
-# Build info shown in the web UI footer; the Docker workflow passes these.
+# Build info shown in the web UI footer and at GET /api/version; the Docker
+# workflow passes these.
 ARG VERSION=dev
-ARG COMMIT=none
+ARG COMMIT=
 ARG BRANCH=
+ARG BUILD_TIME=
 RUN CGO_ENABLED=0 go build \
-    -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.branch=${BRANCH}" \
+    -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.branch=${BRANCH} -X main.buildTime=${BUILD_TIME}" \
     -o /out/address-serv ./cmd/address-serv
 
 FROM gcr.io/distroless/static-debian12

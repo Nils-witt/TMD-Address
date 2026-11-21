@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/gzhttp"
 
+	"github.com/nils-witt/address-serve/internal/buildinfo"
 	"github.com/nils-witt/address-serve/internal/store"
 )
 
@@ -30,11 +31,13 @@ type Config struct {
 	UIConfig UIConfig
 	// Collectors wires the collector routes, which need the admin group.
 	Collectors CollectorConfig
+	// Build is served at GET /api/version.
+	Build buildinfo.Info
 }
 
 // NewHandler returns the root handler serving every API route, wrapped in
-// logging, compression, CORS and auth middleware. The web UI, its config and
-// the API docs are the only routes served without auth.
+// logging, compression, CORS and auth middleware. The web UI, its config, the
+// API docs and the build information are the only routes served without auth.
 func NewHandler(
 	cfg Config,
 	streets *store.StreetStore,
@@ -66,6 +69,7 @@ func NewHandler(
 
 	root := http.NewServeMux()
 	registerDocsRoutes(root)
+	registerVersionRoutes(root, cfg.Build)
 
 	if cfg.UI != nil {
 		registerUIRoutes(root, cfg.UI, cfg.UIConfig)

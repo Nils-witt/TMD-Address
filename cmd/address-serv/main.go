@@ -20,15 +20,18 @@ import (
 	"github.com/nils-witt/address-serve/frontend"
 	"github.com/nils-witt/address-serve/internal/api"
 	"github.com/nils-witt/address-serve/internal/api/spa"
+	"github.com/nils-witt/address-serve/internal/buildinfo"
 	"github.com/nils-witt/address-serve/internal/collector"
 	"github.com/nils-witt/address-serve/internal/store"
 )
 
 // Build info, set at link time with -X (see Dockerfile and .goreleaser.yml).
+// Empty values fall back to the VCS data Go embeds (see buildinfo.Get).
 var (
-	version = "dev"
-	commit  = "none"
-	branch  string
+	version   string
+	commit    string
+	branch    string
+	buildTime string
 )
 
 func main() {
@@ -42,7 +45,8 @@ func run() error {
 		log.Print("no .env file found, relying on environment variables")
 	}
 
-	log.Printf("address-serv %s (%s)", version, commit)
+	build := buildinfo.Get(version, commit, buildTime)
+	log.Printf("address-serv %s (%s)", build.Version, build.Commit)
 	logConfig()
 
 	ctx := context.Background()
@@ -84,8 +88,9 @@ func run() error {
 			CORSAllowedOrigin: getenvDefault("CORS_ALLOWED_ORIGIN", defaultCORSAllowedOrigin),
 			Suggest:           store.NewSuggestStore(db),
 			UI:                ui,
-			UIConfig:          uiConfig(),
+			UIConfig:          uiConfig(build),
 			Collectors:        collectors,
+			Build:             build,
 		},
 		store.NewStreetStore(db),
 		store.NewHouseNumberStore(db),
@@ -241,15 +246,15 @@ func splitList(s string) []string {
 // uiConfig describes the OIDC client the web UI signs in with. The client ID
 // defaults to OIDC_AUDIENCE, which fits providers where a public client's own
 // ID ends up in the access token's audience.
-func uiConfig() api.UIConfig {
+func uiConfig(build buildinfo.Info) api.UIConfig {
 	return api.UIConfig{
 		OIDC: api.UIOIDCConfig{
 			Issuer:   os.Getenv("OIDC_ISSUER_URL"),
 			ClientID: getenvDefault("OIDC_CLIENT_ID", os.Getenv("OIDC_AUDIENCE")),
 			Scope:    getenvDefault("OIDC_SCOPE", defaultOIDCScope),
 		},
-		Version: version,
-		Commit:  commit,
+		Version: build.Version,
+		Commit:  build.Commit,
 		Branch:  branch,
 	}
 }
