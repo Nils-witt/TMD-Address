@@ -23,6 +23,9 @@ const (
 	defaultCollectorTimeout  = "10m"
 	defaultCollectorGeoMaxM  = "100"
 	defaultCollectorRuns     = "50"
+	defaultLogoutExchange    = "oidc.logout"
+	defaultLogoutQueue       = "oidc.logout.address"
+	defaultLogoutRetention   = "24h"
 )
 
 // secretVisibleChars is how many trailing characters of a secret the startup
@@ -55,6 +58,11 @@ func configEntries() []configEntry {
 		{key: "OIDC_JWKS_URL", def: "from OpenID discovery"},
 		{key: "OIDC_CLIENT_ID", def: "OIDC_AUDIENCE"},
 		{key: "OIDC_SCOPE", def: defaultOIDCScope},
+		{key: "OIDC_LOGOUT_AUDIENCE", def: "OIDC_CLIENT_ID"},
+		{key: "OIDC_LOGOUT_RETENTION", def: defaultLogoutRetention},
+		{key: "AMQP_URL", def: "back-channel logouts not shared", mask: maskDSN},
+		{key: "AMQP_LOGOUT_EXCHANGE", def: defaultLogoutExchange},
+		{key: "AMQP_LOGOUT_QUEUE", def: defaultLogoutQueue},
 		{key: "CORS_ALLOWED_ORIGIN", def: defaultCORSAllowedOrigin},
 		{key: "PROXY_AUTH_HEADER"},
 		{key: "TRUSTED_PROXIES"},

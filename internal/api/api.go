@@ -33,11 +33,18 @@ type Config struct {
 	Collectors CollectorConfig
 	// Build is served at GET /api/version.
 	Build buildinfo.Info
+	// Logouts applies the provider's back-channel logout tokens at
+	// POST /auth/backchannel-logout; nil leaves the route out.
+	Logouts LogoutReceiver
+	// Revocations refuses the OIDC tokens a back-channel logout revoked;
+	// nil refuses none.
+	Revocations TokenRevocations
 }
 
 // NewHandler returns the root handler serving every API route, wrapped in
 // logging, compression, CORS and auth middleware. The web UI, its config, the
-// API docs and the build information are the only routes served without auth.
+// API docs, the build information and the back-channel logout (authenticated
+// by its logout token) are the only routes served without auth.
 func NewHandler(
 	cfg Config,
 	streets *store.StreetStore,
@@ -60,6 +67,7 @@ func NewHandler(
 	}
 
 	if cfg.Collectors.Runner != nil {
+		cfg.Collectors.Revocations = cfg.Revocations
 		registerCollectorRoutes(mux, cfg.Collectors)
 	}
 
@@ -75,6 +83,10 @@ func NewHandler(
 		registerUIRoutes(root, cfg.UI, cfg.UIConfig)
 	}
 
+	if cfg.Logouts != nil {
+		root.HandleFunc("POST /auth/backchannel-logout", handleBackchannelLogout(cfg.OIDC, cfg.Logouts))
+	}
+
 	// A nil *APITokenStore must become a nil interface, not a non-nil one
 	// wrapping a nil pointer.
 	var tokenAuth apiTokenAuthenticator
@@ -82,7 +94,7 @@ func NewHandler(
 		tokenAuth = tokens
 	}
 
-	root.Handle("/", proxyAuthMiddleware(cfg.ProxyAuth)(authMiddleware(cfg.OIDC, tokenAuth)(requireReadAccess(mux))))
+	root.Handle("/", proxyAuthMiddleware(cfg.ProxyAuth)(authMiddleware(cfg.OIDC, tokenAuth, cfg.Revocations)(requireReadAccess(mux))))
 
 	// gzip shrinks the unfiltered street list ~5x (833 KB → 156 KB for 5,000
 	// streets) and the UI bundles ~3x; responses under 1 KB, already

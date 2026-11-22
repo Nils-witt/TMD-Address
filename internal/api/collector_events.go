@@ -71,7 +71,7 @@ func webSocketToken(r *http.Request) (string, bool) {
 // handleCollectorEvents pushes run updates over a WebSocket, so the UI can
 // follow runs without polling. Updates missed while disconnected are not
 // replayed: a client reloads the runs whenever it (re)connects.
-func handleCollectorEvents(runner *collector.Runner) http.HandlerFunc {
+func handleCollectorEvents(runner *collector.Runner, revoked TokenRevocations) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// The server's read and write timeouts are meant for one request,
 		// not for a connection that stays open.
@@ -111,9 +111,12 @@ func handleCollectorEvents(runner *collector.Runner) http.HandlerFunc {
 		runs, unsubscribe := runner.Subscribe()
 		defer unsubscribe()
 
-		err = sendCollectorEvents(ctx, conn, runs)
+		signedOut := func() bool { return tokenRevoked(revoked, p.Claims) }
+		err = sendCollectorEvents(ctx, conn, runs, signedOut)
 
 		switch {
+		case errors.Is(err, errSignedOut):
+			_ = conn.Close(statusSessionExpired, "signed out")
 		case errors.Is(err, errFellBehind):
 			_ = conn.Close(websocket.StatusTryAgainLater, "fell behind; reconnect and reload")
 		// Not err: a write that timed out wraps DeadlineExceeded too.
@@ -124,8 +127,9 @@ func handleCollectorEvents(runner *collector.Runner) http.HandlerFunc {
 }
 
 // sendCollectorEvents writes each run update to conn, pinging it while idle,
-// until ctx ends, a write fails, or the subscription is dropped.
-func sendCollectorEvents(ctx context.Context, conn *websocket.Conn, runs <-chan store.CollectorRun) error {
+// until ctx ends, a write fails, the subscription is dropped, or signedOut
+// reports at a ping that its token was revoked (errSignedOut).
+func sendCollectorEvents(ctx context.Context, conn *websocket.Conn, runs <-chan store.CollectorRun, signedOut func() bool) error {
 	ping := time.NewTicker(eventsPingInterval)
 	defer ping.Stop()
 
@@ -144,6 +148,10 @@ func sendCollectorEvents(ctx context.Context, conn *websocket.Conn, runs <-chan 
 				return err
 			}
 		case <-ping.C:
+			if signedOut() {
+				return errSignedOut
+			}
+
 			if err := writeWithTimeout(ctx, conn.Ping); err != nil {
 				return err
 			}

@@ -52,8 +52,9 @@ type apiTokenAuthenticator interface {
 
 // authMiddleware requires a bearer token on every request: either a JWT
 // issued by the configured OpenID Connect provider, or an API token (told
-// apart by store.APITokenPrefix).
-func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator) func(http.Handler) http.Handler {
+// apart by store.APITokenPrefix). An OIDC token a back-channel logout revoked
+// (revoked, nil for none) is refused.
+func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator, revoked TokenRevocations) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Authenticated by a trusted proxy already.
@@ -73,6 +74,9 @@ func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator) func(h
 				p, err = apiTokenPrincipal(r.Context(), tokens, tokenString)
 			} else {
 				p, err = oidcPrincipal(verifier, tokenString)
+				if err == nil && tokenRevoked(revoked, p.Claims) {
+					err = errSignedOut
+				}
 				// The response does not say why a token was rejected, so the
 				// log has to, or a misconfigured issuer or audience looks
 				// like any bad token. Expiry is routine and left out.
