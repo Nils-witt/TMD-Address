@@ -94,7 +94,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	tokens := fakeAPITokens{testAPIToken: {ID: uuid.New(), OwnerSub: testSubject, OwnerName: "User One"}}
 
-	handler := authMiddleware(oidc, tokens)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := authMiddleware(oidc, tokens, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p, _ := principalFrom(r.Context())
 		writeJSON(w, http.StatusOK, map[string]any{subClaim: p.Subject})
 	}))

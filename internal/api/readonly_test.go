@@ -81,7 +81,7 @@ func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, rea
 		return s
 	}
 
-	return proxyAuthMiddleware(proxy)(authMiddleware(oidc, fakeAPITokens{})(requireReadAccess(inner))), iss
+	return proxyAuthMiddleware(proxy)(authMiddleware(oidc, fakeAPITokens{}, nil)(requireReadAccess(inner))), iss
 }
 
 func TestReadOnlyIssuer(t *testing.T) {

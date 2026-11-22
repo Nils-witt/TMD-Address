@@ -43,6 +43,9 @@ type OIDCConfig struct {
 	// JWKSURL overrides the key set URL of IssuerURL found via OpenID
 	// discovery.
 	JWKSURL string
+	// LogoutAudience is the "aud" of IssuerURL's back-channel logout tokens:
+	// the client ID the provider sends them for. Empty is Audience.
+	LogoutAudience string
 }
 
 // oidcIssuer verifies the tokens of one issuer against its own key set, so
@@ -57,6 +60,9 @@ type oidcIssuer struct {
 // published by the OpenID Connect providers it accepts.
 type OIDCVerifier struct {
 	issuers map[string]oidcIssuer
+	// logout verifies IssuerURL's back-channel logout tokens.
+	logout *jwt.Parser
+	keys   keyfunc.Keyfunc
 }
 
 // NewOIDCVerifier resolves each issuer's JWKS endpoint (via discovery unless
@@ -76,7 +82,16 @@ func NewOIDCVerifier(ctx context.Context, cfg OIDCConfig) (*OIDCVerifier, error)
 		return nil, err
 	}
 
-	v := &OIDCVerifier{issuers: map[string]oidcIssuer{cfg.IssuerURL: main}}
+	logoutAudience := cfg.LogoutAudience
+	if logoutAudience == "" {
+		logoutAudience = cfg.Audience
+	}
+
+	v := &OIDCVerifier{
+		issuers: map[string]oidcIssuer{cfg.IssuerURL: main},
+		logout:  newOIDCParser(cfg.IssuerURL, jwt.WithAudience(logoutAudience), jwt.WithIssuedAt()),
+		keys:    main.keys,
+	}
 
 	for _, issuer := range cfg.ReadOnlyIssuerURLs {
 		if issuer == "" {
@@ -116,15 +131,16 @@ func newOIDCIssuer(ctx context.Context, issuer, jwksURL string, opts ...jwt.Pars
 		return oidcIssuer{}, fmt.Errorf("failed to load OIDC key set from %s: %w", jwksURL, err)
 	}
 
-	return oidcIssuer{
-		keys: keys,
-		parser: jwt.NewParser(append([]jwt.ParserOption{
-			jwt.WithValidMethods(oidcSigningMethods),
-			jwt.WithIssuer(issuer),
-			jwt.WithExpirationRequired(),
-			jwt.WithLeeway(30 * time.Second),
-		}, opts...)...),
-	}, nil
+	return oidcIssuer{keys: keys, parser: newOIDCParser(issuer, opts...)}, nil
+}
+
+func newOIDCParser(issuer string, opts ...jwt.ParserOption) *jwt.Parser {
+	return jwt.NewParser(append([]jwt.ParserOption{
+		jwt.WithValidMethods(oidcSigningMethods),
+		jwt.WithIssuer(issuer),
+		jwt.WithExpirationRequired(),
+		jwt.WithLeeway(30 * time.Second),
+	}, opts...)...)
 }
 
 // errUnknownIssuer is returned for a token from none of the accepted

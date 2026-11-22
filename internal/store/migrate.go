@@ -41,7 +41,7 @@ func migrate(db *gorm.DB) error {
 		}
 	}
 
-	err := db.AutoMigrate(&Collector{}, &Street{}, &HouseNumber{}, &GeoObject{}, &APIToken{}, &CollectorRun{})
+	err := db.AutoMigrate(&Collector{}, &Street{}, &HouseNumber{}, &GeoObject{}, &APIToken{}, &CollectorRun{}, &ProviderLogout{})
 	if err != nil {
 		return err
 	}

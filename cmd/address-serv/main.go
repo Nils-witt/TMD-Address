@@ -81,6 +81,11 @@ func run() error {
 		return err
 	}
 
+	logouts, err := startLogouts(ctx, db)
+	if err != nil {
+		return err
+	}
+
 	handler := api.NewHandler(
 		api.Config{
 			OIDC:              oidc,
@@ -91,6 +96,8 @@ func run() error {
 			UIConfig:          uiConfig(build),
 			Collectors:        collectors,
 			Build:             build,
+			Logouts:           logouts,
+			Revocations:       logouts,
 		},
 		store.NewStreetStore(db),
 		store.NewHouseNumberStore(db),
@@ -200,6 +207,8 @@ func oidcVerifier(ctx context.Context) (*api.OIDCVerifier, error) {
 		Audience:           os.Getenv("OIDC_AUDIENCE"),
 		ReadOnlyIssuerURLs: splitList(os.Getenv("OIDC_READONLY_ISSUER_URLS")),
 		JWKSURL:            os.Getenv("OIDC_JWKS_URL"),
+		// Logout tokens are issued to the client, like the UI's tokens.
+		LogoutAudience: getenvDefault("OIDC_LOGOUT_AUDIENCE", os.Getenv("OIDC_CLIENT_ID")),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up OIDC: %w", err)

@@ -21,6 +21,9 @@ type CollectorConfig struct {
 	// AdminGroup is the group whose members may manage collectors. Empty
 	// lets nobody.
 	AdminGroup string
+	// Revocations closes the event streams whose token a back-channel logout
+	// revoked; nil closes none.
+	Revocations TokenRevocations
 }
 
 const (
@@ -43,7 +46,7 @@ func registerCollectorRoutes(mux *http.ServeMux, cfg CollectorConfig) {
 		"GET /api/collectors/{id}/runs":           handleListRuns(cfg.Store),
 		"GET /api/collector-runs/{runId}":         handleGetRun(cfg.Store),
 		"POST /api/collector-runs/{runId}/cancel": handleCancelRun(cfg),
-		"GET /api/collector-events":               handleCollectorEvents(cfg.Runner),
+		"GET /api/collector-events":               handleCollectorEvents(cfg.Runner, cfg.Revocations),
 	}
 
 	for pattern, h := range routes {

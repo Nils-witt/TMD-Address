@@ -63,6 +63,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/Version"
 
+  /auth/backchannel-logout:
+    post:
+      summary: OpenID Connect back-channel logout
+      description: |
+        Called by the OpenID provider (register it as the client's
+        back-channel logout URL) when a user's session there ends, as OpenID
+        Connect Back-Channel Logout 1.0 describes. The logout token, signed
+        by OIDC_ISSUER_URL's provider for OIDC_LOGOUT_AUDIENCE (default
+        OIDC_CLIENT_ID), is the only authentication.
+
+        OIDC tokens of the user issued before the logout are then refused
+        with 401, by `sub`; a logout naming a provider session (`sid`) only
+        that session's tokens and tokens without a `sid`. Open
+        /api/collector-events streams close with 4001 at their next ping.
+        With AMQP_URL the logout is also published to the other services
+        (the API, the tile server) over RabbitMQ, and the logouts they
+        receive apply here the same way, including to tokens of
+        OIDC_READONLY_ISSUER_URLS.
+      operationId: backchannelLogout
+      tags: [health]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [logout_token]
+              properties:
+                logout_token:
+                  type: string
+                  description: The provider's logout token (a JWT).
+      responses:
+        "200":
+          description: The logout was applied.
+        "400":
+          description: >-
+            The logout token is missing or invalid (`invalid_request`), or the
+            logout could not be applied (`server_error`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    enum: [invalid_request, server_error]
+                  error_description:
+                    type: string
+
   /docs:
     get:
       summary: API documentation (Swagger UI)
