@@ -25,6 +25,8 @@ export const queryKeys = {
     houseNumbers: [['house-numbers'], ['geo-objects']] as const,
     geoObjects: [['geo-objects']] as const,
     apiTokens: [['api-tokens']] as const,
+    // An import changes rows of every kind but collectors'.
+    imported: [['streets'], ['cities'], ['districts'], ['house-numbers'], ['geo-objects']] as const,
     // A run changes rows of every kind.
     collectors: [
       ['collectors'],

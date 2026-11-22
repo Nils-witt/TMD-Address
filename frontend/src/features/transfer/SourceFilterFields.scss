@@ -1,0 +1,10 @@
+.source-filter-fields {
+  width: 100%;
+}
+
+.source-filter-fields__sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+}

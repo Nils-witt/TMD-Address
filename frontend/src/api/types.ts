@@ -232,3 +232,42 @@ export interface UIConfig {
   /** Git branch of the build; empty when unknown. */
   branch: string;
 }
+
+/** Which rows an export or import covers: manual rows, the rows of the named
+ * collectors, or both. Neither set covers every row. */
+export interface SourceFilter {
+  manual: boolean;
+  collectors: string[];
+}
+
+/** What an import does with stored manual rows that differ from the file;
+ * rows a collector owns are never changed. */
+export type ImportMode = 'skip' | 'update';
+
+export interface ImportOptions {
+  filter: SourceFilter;
+  mode: ImportMode;
+  /** Report what the import would do without keeping any change. */
+  dryRun: boolean;
+}
+
+export interface ImportEntityStats {
+  created: number;
+  updated: number;
+  unchanged: number;
+  /** Stored rows that differ from the file and were left as they are. */
+  skipped: number;
+}
+
+export interface ImportResult {
+  dryRun: boolean;
+  streets: ImportEntityStats;
+  houseNumbers: ImportEntityStats;
+  geoObjects: ImportEntityStats;
+}
+
+/** A downloaded export: the document and the file name the server gave it. */
+export interface ExportFile {
+  blob: Blob;
+  filename: string;
+}

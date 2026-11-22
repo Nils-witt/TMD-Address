@@ -16,12 +16,16 @@ import type {
   CollectorSettingsInput,
   CreatedAPIToken,
   District,
+  ExportFile,
   GeoObject,
   GeoObjectFilter,
   GeoObjectInput,
   HouseNumber,
   HouseNumberFilter,
   HouseNumberInput,
+  ImportOptions,
+  ImportResult,
+  SourceFilter,
   Street,
   StreetFilter,
   StreetInput,
@@ -78,6 +82,21 @@ function withQuery(path: string, params: Record<string, string | undefined>): st
   }
   const qs = query.toString();
   return qs ? `${path}?${qs}` : path;
+}
+
+/** The manual and collector parameters of /api/export and /api/import; none
+ * for a filter covering every row. */
+function sourceQuery(filter: SourceFilter): URLSearchParams {
+  const query = new URLSearchParams();
+  if (filter.manual) query.set('manual', 'true');
+  for (const id of filter.collectors) query.append('collector', id);
+  return query;
+}
+
+/** The file name of a Content-Disposition header, or `fallback`. */
+function attachmentName(header: string | null, fallback: string): string {
+  const match = header?.match(/filename="([^"]+)"/);
+  return match?.[1] ?? fallback;
 }
 
 /** GET /ui-config, the only call made before an ApiClient (and a session) exists. */
@@ -228,6 +247,32 @@ export class ApiClient {
       { ids },
     );
     return deleted;
+  }
+
+  // ---- export and import -------------------------------------------------
+
+  async exportData(filter: SourceFilter): Promise<ExportFile> {
+    const qs = sourceQuery(filter).toString();
+    const res = await this.request(qs ? `/api/export?${qs}` : '/api/export');
+    const filename = attachmentName(
+      res.headers.get('Content-Disposition'),
+      'address-serv-export.json',
+    );
+    return { blob: await res.blob(), filename };
+  }
+
+  /** Sends `file`, an export document, as is: the server validates it, so a
+   * large file isn't parsed in the browser. */
+  async importData(file: Blob, options: ImportOptions): Promise<ImportResult> {
+    const query = sourceQuery(options.filter);
+    query.set('mode', options.mode);
+    if (options.dryRun) query.set('dryRun', 'true');
+    const res = await this.request(`/api/import?${query.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: file,
+    });
+    return (await res.json()) as ImportResult;
   }
 
   // ---- API tokens --------------------------------------------------------

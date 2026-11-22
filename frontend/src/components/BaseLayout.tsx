@@ -33,6 +33,7 @@ export default function BaseLayout() {
     { to: ROUTES.streets, label: t('nav.streets') },
     { to: ROUTES.houseNumbers, label: t('nav.houseNumbers') },
     { to: ROUTES.geoObjects, label: t('nav.geoObjects') },
+    { to: ROUTES.transfer, label: t('nav.transfer') },
     ...(collectorAccess ? [{ to: ROUTES.collectors, label: t('nav.collectors') }] : []),
   ];
 

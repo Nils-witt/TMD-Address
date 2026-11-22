@@ -1,0 +1,23 @@
+.transfer-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.transfer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 24px 24px;
+}
+
+.transfer-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.transfer-panel__file-name {
+  overflow-wrap: anywhere;
+}

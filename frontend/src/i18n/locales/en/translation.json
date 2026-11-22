@@ -20,7 +20,8 @@
     "logout": "Logout",
     "openNavMenu": "Open navigation menu",
     "geoObjects": "Geo objects",
-    "collectors": "Collectors"
+    "collectors": "Collectors",
+    "transfer": "Import & export"
   },
   "auth": {
     "sessionExpired": "Your session has expired. Please sign in again."
@@ -240,5 +241,40 @@
     "scheduleRemove": "Remove schedule",
     "nextRun": "next {{date}}",
     "scheduleTrigger": "Schedule"
+  },
+  "transfer": {
+    "exportTitle": "Export",
+    "exportIntro": "Download streets, house numbers and geo objects as a JSON file, to back them up or to import them into another instance.",
+    "export": "Download export",
+    "exporting": "Exporting…",
+    "importTitle": "Import",
+    "importIntro": "Import a file downloaded here. Rows are matched to stored ones by their address or name; new rows are created as manual rows. Rows a collector owns are never changed.",
+    "chooseFile": "Choose file",
+    "noFile": "No file chosen",
+    "sources": "Data",
+    "allSources": "All data",
+    "selectedSources": "Only from",
+    "manualData": "Manual data",
+    "collectors": "Collectors",
+    "collectorsPlaceholder": "Collector ID",
+    "chooseSource": "Choose manual data, a collector, or both.",
+    "dependentRowsHint": "The streets and house numbers that chosen rows are on come along, whoever owns them.",
+    "mode": "Rows that are already stored",
+    "modeSkip": "Keep them as they are",
+    "modeUpdate": "Overwrite manual rows with the file's values",
+    "preview": "Preview",
+    "import": "Import",
+    "importing": "Importing…",
+    "confirmTitle": "Import file?",
+    "confirmMessage": "Import {{name}}? All rows are written together, or none if anything fails.",
+    "previewResult": "Preview: nothing was changed",
+    "importResult": "Imported",
+    "skippedHint": "Skipped rows differ from the file but were kept, because a collector owns them or because stored rows are kept as they are.",
+    "stats": {
+      "created": "Created",
+      "updated": "Updated",
+      "unchanged": "Unchanged",
+      "skipped": "Skipped"
+    }
   }
 }

@@ -25,6 +25,9 @@ type Config struct {
 	CORSAllowedOrigin string
 	// Suggest serves /api/suggest/*. Nil leaves those routes out.
 	Suggest *store.SuggestStore
+	// Transfer serves GET /api/export and POST /api/import. Nil leaves those
+	// routes out.
+	Transfer *store.TransferStore
 	// UI serves the embedded web UI under /ui/. Nil disables the UI routes.
 	UI http.Handler
 	// UIConfig is served to the web UI at GET /ui-config.
@@ -64,6 +67,10 @@ func NewHandler(
 
 	if cfg.Suggest != nil {
 		registerSuggestRoutes(mux, cfg.Suggest, houseNumbers, geoObjects)
+	}
+
+	if cfg.Transfer != nil {
+		registerTransferRoutes(mux, cfg.Transfer)
 	}
 
 	if cfg.Collectors.Runner != nil {

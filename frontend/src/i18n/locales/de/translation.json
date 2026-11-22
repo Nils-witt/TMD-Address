@@ -20,7 +20,8 @@
     "logout": "Abmelden",
     "openNavMenu": "Navigationsmenü öffnen",
     "geoObjects": "Geo-Objekte",
-    "collectors": "Collectors"
+    "collectors": "Collectors",
+    "transfer": "Import & Export"
   },
   "auth": {
     "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an."
@@ -240,5 +241,40 @@
     "scheduleRemove": "Zeitplan entfernen",
     "nextRun": "nächster Lauf {{date}}",
     "scheduleTrigger": "Zeitplan"
+  },
+  "transfer": {
+    "exportTitle": "Export",
+    "exportIntro": "Straßen, Hausnummern und Geo-Objekte als JSON-Datei herunterladen, um sie zu sichern oder in eine andere Instanz zu importieren.",
+    "export": "Export herunterladen",
+    "exporting": "Exportiere…",
+    "importTitle": "Import",
+    "importIntro": "Eine hier heruntergeladene Datei importieren. Zeilen werden anhand ihrer Adresse oder ihres Namens den gespeicherten zugeordnet; neue Zeilen werden als manuelle angelegt. Zeilen eines Collectors werden nie geändert.",
+    "chooseFile": "Datei wählen",
+    "noFile": "Keine Datei gewählt",
+    "sources": "Daten",
+    "allSources": "Alle Daten",
+    "selectedSources": "Nur aus",
+    "manualData": "Manuelle Daten",
+    "collectors": "Collectors",
+    "collectorsPlaceholder": "Collector-ID",
+    "chooseSource": "Manuelle Daten, einen Collector oder beides wählen.",
+    "dependentRowsHint": "Straßen und Hausnummern, an denen gewählte Zeilen liegen, kommen mit, egal wem sie gehören.",
+    "mode": "Bereits gespeicherte Zeilen",
+    "modeSkip": "Unverändert lassen",
+    "modeUpdate": "Manuelle Zeilen mit den Werten der Datei überschreiben",
+    "preview": "Vorschau",
+    "import": "Importieren",
+    "importing": "Importiere…",
+    "confirmTitle": "Datei importieren?",
+    "confirmMessage": "{{name}} importieren? Alle Zeilen werden gemeinsam geschrieben, oder keine, falls etwas fehlschlägt.",
+    "previewResult": "Vorschau: nichts wurde geändert",
+    "importResult": "Importiert",
+    "skippedHint": "Übersprungene Zeilen weichen von der Datei ab, wurden aber behalten, weil ein Collector sie besitzt oder weil gespeicherte Zeilen unverändert bleiben.",
+    "stats": {
+      "created": "Angelegt",
+      "updated": "Aktualisiert",
+      "unchanged": "Unverändert",
+      "skipped": "Übersprungen"
+    }
   }
 }

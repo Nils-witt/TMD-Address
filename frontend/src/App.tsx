@@ -23,6 +23,7 @@ const HouseNumbersPage = lazy(() => import('./pages/HouseNumbersPage.tsx'));
 const GeoObjectsPage = lazy(() => import('./pages/GeoObjectsPage.tsx'));
 const APITokensPage = lazy(() => import('./pages/APITokensPage.tsx'));
 const CollectorsPage = lazy(() => import('./pages/CollectorsPage.tsx'));
+const TransferPage = lazy(() => import('./pages/TransferPage.tsx'));
 
 export default function App() {
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)', { noSsr: true });
@@ -62,6 +63,7 @@ export default function App() {
                           <Route path={ROUTE_SEGMENTS.geoObjects} element={<GeoObjectsPage />} />
                           <Route path={ROUTE_SEGMENTS.apiTokens} element={<APITokensPage />} />
                           <Route path={ROUTE_SEGMENTS.collectors} element={<CollectorsPage />} />
+                          <Route path={ROUTE_SEGMENTS.transfer} element={<TransferPage />} />
                           <Route path="*" element={<NotFoundPage />} />
                         </Route>
                       </Route>

@@ -101,6 +101,7 @@ func run() error {
 			ProxyAuth:         proxyAuth,
 			CORSAllowedOrigin: getenvDefault("CORS_ALLOWED_ORIGIN", defaultCORSAllowedOrigin),
 			Suggest:           store.NewSuggestStore(db),
+			Transfer:          store.NewTransferStore(db),
 			UI:                ui,
 			UIConfig:          uiConfig(build),
 			Collectors:        collectors,

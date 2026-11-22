@@ -10,6 +10,7 @@ export const ROUTE_SEGMENTS = {
   geoObjects: 'geo-objects',
   apiTokens: 'api-tokens',
   collectors: 'collectors',
+  transfer: 'transfer',
 } as const;
 
 const BASE = `/${ROUTE_SEGMENTS.base}`;
@@ -23,5 +24,6 @@ export const ROUTES = {
   geoObjects: `${BASE}/${ROUTE_SEGMENTS.geoObjects}`,
   apiTokens: `${BASE}/${ROUTE_SEGMENTS.apiTokens}`,
   collectors: `${BASE}/${ROUTE_SEGMENTS.collectors}`,
+  transfer: `${BASE}/${ROUTE_SEGMENTS.transfer}`,
   street: (streetId: string) => `${BASE}/${ROUTE_SEGMENTS.streets}/${streetId}`,
 } as const;

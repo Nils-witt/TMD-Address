@@ -25,6 +25,11 @@ tags:
       bounded for that, one request per field. Read-only tokens may call
       them.
   - name: bulk
+  - name: transfer
+    description: >-
+      Export streets, house numbers and geo objects as one JSON document, and
+      import such a document into this or another instance. Both can be
+      limited to manual rows, to the rows of some collectors, or both.
   - name: api-tokens
   - name: collectors
   - name: ui
@@ -465,6 +470,112 @@ paths:
                 $ref: "#/components/schemas/Error"
         "409":
           description: A street with this name, district, city and country already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/export:
+    get:
+      summary: Export streets, house numbers and geo objects
+      description: >-
+        Returns the selected rows as an ExportDocument, sent as an attachment.
+        Without manual or collector, every row is exported. A row that a
+        selected row needs is exported too, even if not selected: the street
+        of a selected house number or geo object, and the house number a
+        selected geo object is at. Each row's collectorId says who owned it.
+      operationId: exportData
+      tags: [transfer]
+      parameters:
+        - $ref: "#/components/parameters/TransferManual"
+        - $ref: "#/components/parameters/TransferCollector"
+      responses:
+        "200":
+          description: The export document
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="address-serv-export-20261122-101500.json"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportDocument"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/import:
+    post:
+      summary: Import an export document
+      description: >-
+        Writes the rows of an ExportDocument that manual and collector select
+        (as for the export; without them, every row) in one transaction:
+        either all of them are written, or none is.
+
+
+        Rows are matched to stored ones by their keys: streets by name,
+        district, city and country; house numbers by number and addition on
+        their street; geo objects by externalId if they have one, else by
+        group and name. Unmatched rows are created as manual rows, whoever
+        owned them in the document. A matched row that differs is left as it
+        is in mode `skip` and overwritten in mode `update`, unless a
+        collector owns it: those are never changed.
+      operationId: importData
+      tags: [transfer]
+      parameters:
+        - $ref: "#/components/parameters/TransferManual"
+        - $ref: "#/components/parameters/TransferCollector"
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [skip, update]
+            default: skip
+          description: What to do with stored manual rows that differ from the document
+        - name: dryRun
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Report what the import would do without keeping any change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportDocument"
+      responses:
+        "200":
+          description: What the import did, or would do in a dry run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: Invalid query parameters or document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: >-
+            A geo object of the document collides with a stored one it wasn't
+            matched to, by name in its group or by externalId, or two geo
+            objects of the document match the same stored one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The document is larger than 128 MiB
           content:
             application/json:
               schema:
@@ -1881,6 +1992,23 @@ components:
         type: string
       description: Collector ID, its filename up to the first dot
       example: bonn
+    TransferManual:
+      name: manual
+      in: query
+      schema:
+        type: boolean
+      description: Select manual rows, those no collector owns
+    TransferCollector:
+      name: collector
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+      description: Select the rows of this collector; repeat for several
+      example: [bonn]
     RunID:
       name: runId
       in: path
@@ -2297,6 +2425,142 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HouseNumber"
+
+    ExportDocument:
+      type: object
+      required: [formatVersion, streets]
+      properties:
+        formatVersion:
+          type: integer
+          enum: [1]
+        exportedAt:
+          type: string
+          format: date-time
+        streets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportStreet"
+
+    ExportStreet:
+      type: object
+      required: [name, district, city, country, latitude, longitude]
+      properties:
+        name:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        collectorId:
+          type: string
+          description: The collector that owned the street, absent for a manual one. Import uses it only to filter.
+        houseNumbers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportHouseNumber"
+        geoObjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportGeoObject"
+
+    ExportHouseNumber:
+      type: object
+      required: [number, postcode, latitude, longitude]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        numberAddition:
+          type: string
+        postcode:
+          type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        collectorId:
+          type: string
+
+    ExportGeoObject:
+      type: object
+      required: [name, group, latitude, longitude]
+      properties:
+        name:
+          type: string
+        group:
+          type: string
+        houseNumber:
+          type: object
+          description: One of the street's houseNumbers
+          required: [number]
+          properties:
+            number:
+              type: integer
+            numberAddition:
+              type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        collectorId:
+          type: string
+
+    ImportEntityStats:
+      type: object
+      required: [created, updated, unchanged, skipped]
+      properties:
+        created:
+          type: integer
+        updated:
+          type: integer
+        unchanged:
+          type: integer
+        skipped:
+          type: integer
+          description: >-
+            Stored rows that differ from the document and were left as they
+            are: in mode skip, or because a collector owns them
+
+    ImportResult:
+      type: object
+      required: [dryRun, streets, houseNumbers, geoObjects]
+      properties:
+        dryRun:
+          type: boolean
+        streets:
+          $ref: "#/components/schemas/ImportEntityStats"
+        houseNumbers:
+          $ref: "#/components/schemas/ImportEntityStats"
+        geoObjects:
+          $ref: "#/components/schemas/ImportEntityStats"
 
     APITokenInput:
       type: object
