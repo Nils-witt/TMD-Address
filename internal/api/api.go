@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/gzhttp"
 
-	"github.com/nils-witt/address-serve/internal/buildinfo"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/buildinfo"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // Config holds the settings NewHandler needs besides the stores.

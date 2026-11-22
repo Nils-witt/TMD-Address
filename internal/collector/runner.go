@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // DescribeTimeout bounds `<exe> describe`.

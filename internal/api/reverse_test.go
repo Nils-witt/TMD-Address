@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // TestHandleReverseGeocodeValidation checks that invalid query parameters

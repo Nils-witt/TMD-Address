@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nils-witt/address-serve/internal/logout"
-	"github.com/nils-witt/address-serve/internal/logoutbus"
+	"github.com/nils-witt/tmd-address/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/logoutbus"
 )
 
 const originAPI = "api"

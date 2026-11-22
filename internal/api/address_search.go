@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 const (

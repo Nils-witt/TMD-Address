@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/nils-witt/address-serve/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/logout"
 )
 
 // ProviderLogout is a sign-out at the OpenID provider, received by this

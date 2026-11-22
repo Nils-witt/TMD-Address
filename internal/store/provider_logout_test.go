@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nils-witt/address-serve/internal/logout"
-	"github.com/nils-witt/address-serve/internal/store"
-	"github.com/nils-witt/address-serve/internal/store/storetest"
+	"github.com/nils-witt/tmd-address/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store/storetest"
 )
 
 func TestProviderLogoutStore(t *testing.T) {

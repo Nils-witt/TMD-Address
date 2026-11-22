@@ -25,7 +25,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/nils-witt/address-serve/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/logout"
 )
 
 // SchemaVersion is the version of Message this package writes and reads.

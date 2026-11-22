@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // maxReverseLimit caps the limit query parameter of GET /api/reverse.

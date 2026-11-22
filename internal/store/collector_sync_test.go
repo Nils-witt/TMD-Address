@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
 )
 
 // syncFixture is a collector with its own city and patch of the globe, so

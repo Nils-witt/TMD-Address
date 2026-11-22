@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/nils-witt/address-serve/internal/buildinfo"
+	"github.com/nils-witt/tmd-address/internal/buildinfo"
 )
 
 // registerVersionRoutes serves the build information at GET /api/version on

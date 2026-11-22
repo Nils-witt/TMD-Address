@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
 )
 
 // plannedAddress is a valid, unique address of a collector output.

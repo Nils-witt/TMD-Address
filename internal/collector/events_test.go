@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 func TestBroadcasterDeliversWithoutIssuesAndLog(t *testing.T) {

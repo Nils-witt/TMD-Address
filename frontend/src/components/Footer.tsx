@@ -24,7 +24,7 @@ export default function Footer() {
       <Typography variant="caption" color="text.secondary">
         &copy; 2026 Nils Witt &middot; Address Serve &middot;{' '}
         <Link
-          href="https://github.com/Nils-witt/Address-Serve"
+          href="https://github.com/Nils-witt/TMD-Address"
           target="_blank"
           rel="noopener noreferrer"
           color="inherit"

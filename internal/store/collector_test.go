@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
 )
 
 func describedAs(name string, settings ...contract.SettingSpec) *contract.Description {

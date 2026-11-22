@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
 )
 
 func planAddr(street string, number int, lat, lon float64) contract.Address {

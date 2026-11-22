@@ -1,4 +1,4 @@
-module github.com/nils-witt/address-serve
+module github.com/nils-witt/tmd-address
 
 go 1.27
 

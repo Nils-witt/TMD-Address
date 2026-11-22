@@ -3,7 +3,7 @@ package collector
 import (
 	"sync"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // eventBuffer is how many run updates a subscriber may fall behind by before

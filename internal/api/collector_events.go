@@ -10,8 +10,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
-	"github.com/nils-witt/address-serve/internal/collector"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/collector"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 const (

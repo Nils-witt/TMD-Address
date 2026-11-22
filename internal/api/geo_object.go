@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 func registerGeoObjectRoutes(mux *http.ServeMux, geoObjects *store.GeoObjectStore) {

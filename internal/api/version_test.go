@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nils-witt/address-serve/internal/buildinfo"
+	"github.com/nils-witt/tmd-address/internal/buildinfo"
 )
 
 // TestVersionBypassesAuth checks that GET /api/version answers the build

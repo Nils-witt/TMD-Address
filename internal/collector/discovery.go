@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // idPattern is what a collector ID, its filename up to the first dot, must

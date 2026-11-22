@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/nils-witt/address-serve/internal/collector/contract"
+	"github.com/nils-witt/tmd-address/internal/collector/contract"
 )
 
 // SyncOptions tunes a sync.

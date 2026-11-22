@@ -17,9 +17,9 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/nils-witt/address-serve/internal/collector"
-	"github.com/nils-witt/address-serve/internal/store"
-	"github.com/nils-witt/address-serve/internal/store/storetest"
+	"github.com/nils-witt/tmd-address/internal/collector"
+	"github.com/nils-witt/tmd-address/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store/storetest"
 )
 
 // demoCollector describes a required street setting and a secret token,

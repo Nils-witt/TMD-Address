@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/nils-witt/address-serve/docs/collectors/collect.schema.json",
+  "$id": "https://github.com/nils-witt/tmd-address/docs/collectors/collect.schema.json",
   "title": "Collector collect output (contract v1)",
   "description": "Only contractVersion and the overall shape are required for the run to succeed; entries that break their rules are skipped individually.",
   "type": "object",

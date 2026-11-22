@@ -11,9 +11,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/nils-witt/address-serve/internal/logout"
-	"github.com/nils-witt/address-serve/internal/logoutbus"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/logoutbus"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // logoutConfig is how back-channel logouts are kept and shared with the

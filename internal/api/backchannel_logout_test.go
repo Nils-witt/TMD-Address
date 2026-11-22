@@ -15,7 +15,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/nils-witt/address-serve/internal/logout"
+	"github.com/nils-witt/tmd-address/internal/logout"
 )
 
 const (

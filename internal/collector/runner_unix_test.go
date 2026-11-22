@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nils-witt/address-serve/internal/store"
-	"github.com/nils-witt/address-serve/internal/store/storetest"
+	"github.com/nils-witt/tmd-address/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store/storetest"
 )
 
 // collectorScript is a collector that describes itself with one required

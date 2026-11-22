@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 func registerStreetRoutes(mux *http.ServeMux, streets *store.StreetStore) {

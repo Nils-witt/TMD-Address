@@ -17,12 +17,12 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/nils-witt/address-serve/frontend"
-	"github.com/nils-witt/address-serve/internal/api"
-	"github.com/nils-witt/address-serve/internal/api/spa"
-	"github.com/nils-witt/address-serve/internal/buildinfo"
-	"github.com/nils-witt/address-serve/internal/collector"
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/frontend"
+	"github.com/nils-witt/tmd-address/internal/api"
+	"github.com/nils-witt/tmd-address/internal/api/spa"
+	"github.com/nils-witt/tmd-address/internal/buildinfo"
+	"github.com/nils-witt/tmd-address/internal/collector"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // Build info, set at link time with -X (see Dockerfile and .goreleaser.yml).

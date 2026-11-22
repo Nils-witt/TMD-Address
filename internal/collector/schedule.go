@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/nils-witt/address-serve/internal/store"
+	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // scheduleCheckInterval is how often RunSchedules looks for due runs, unless
