@@ -26,6 +26,10 @@ const (
 	defaultLogoutExchange    = "oidc.logout"
 	defaultLogoutQueue       = "oidc.logout.address"
 	defaultLogoutRetention   = "24h"
+
+	defaultServiceTokenClients = "tiles"
+	defaultServiceTokenTTL     = "168h"
+	defaultServiceAnnounce     = "1m"
 )
 
 // secretVisibleChars is how many trailing characters of a secret the startup
@@ -63,6 +67,11 @@ func configEntries() []configEntry {
 		{key: "AMQP_URL", def: "back-channel logouts not shared", mask: maskDSN},
 		{key: "AMQP_LOGOUT_EXCHANGE", def: defaultLogoutExchange},
 		{key: "AMQP_LOGOUT_QUEUE", def: defaultLogoutQueue},
+		{key: "SERVICE_DISCOVERY_SECRET", def: "service discovery off", mask: maskSecret},
+		{key: "SERVICE_URL"},
+		{key: "SERVICE_TOKEN_CLIENTS", def: defaultServiceTokenClients},
+		{key: "SERVICE_TOKEN_TTL", def: defaultServiceTokenTTL},
+		{key: "SERVICE_ANNOUNCE_INTERVAL", def: defaultServiceAnnounce},
 		{key: "CORS_ALLOWED_ORIGIN", def: defaultCORSAllowedOrigin},
 		{key: "PROXY_AUTH_HEADER"},
 		{key: "TRUSTED_PROXIES"},

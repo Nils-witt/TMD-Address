@@ -131,6 +131,57 @@ func (st *APITokenStore) Authenticate(ctx context.Context, secret string) (APITo
 	return t, nil
 }
 
+// ServiceOwnerPrefix starts the owner subject of the tokens issued to other
+// services over service discovery, so they can't collide with an OIDC sub.
+const ServiceOwnerPrefix = "service:"
+
+// serviceTokenNamePrefix starts the name of a service token; the rest is the
+// requesting instance.
+const serviceTokenNamePrefix = "auto:"
+
+// ReplaceServiceToken issues a token to instance of the service client,
+// owned by the service account ServiceOwnerPrefix+client, and deletes the
+// tokens issued to that instance before. It returns the stored token and its
+// secret.
+func (st *APITokenStore) ReplaceServiceToken(ctx context.Context, client, instance string, ttl time.Duration) (APIToken, string, error) {
+	if client == "" || instance == "" {
+		return APIToken{}, "", errors.New("client and instance are required")
+	}
+
+	secret, err := newAPITokenSecret()
+	if err != nil {
+		return APIToken{}, "", err
+	}
+
+	now := time.Now().UTC()
+	t := APIToken{
+		Name:      serviceTokenNamePrefix + instance,
+		OwnerSub:  ServiceOwnerPrefix + client,
+		OwnerName: client + " (automatic)",
+		TokenHash: hashAPIToken(secret),
+		Prefix:    secret[:apiTokenDisplayLen],
+		CreatedAt: now,
+	}
+
+	if ttl > 0 {
+		expires := now.Add(ttl)
+		t.ExpiresAt = &expires
+	}
+
+	err = st.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&APIToken{}, "owner_sub = ? AND name = ?", t.OwnerSub, t.Name).Error; err != nil {
+			return err
+		}
+
+		return tx.Create(&t).Error
+	})
+	if err != nil {
+		return APIToken{}, "", err
+	}
+
+	return t, secret, nil
+}
+
 func newAPITokenSecret() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

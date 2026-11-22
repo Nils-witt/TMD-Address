@@ -90,3 +90,48 @@ func TestAPITokenExpired(t *testing.T) {
 		t.Fatalf("err = %v, want ErrInvalidAPIToken", err)
 	}
 }
+
+func TestReplaceServiceToken(t *testing.T) {
+	t.Parallel()
+
+	tokens := NewAPITokenStore(openBenchDB(t))
+	client := "tiles-" + uuid.NewString()
+	owner := ServiceOwnerPrefix + client
+
+	first, firstSecret, err := tokens.ReplaceServiceToken(t.Context(), client, "instance-1", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	other, otherSecret, err := tokens.ReplaceServiceToken(t.Context(), client, "instance-2", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = tokens.Delete(context.Background(), owner, other.ID) })
+
+	if first.OwnerSub != owner || first.ExpiresAt == nil || other.ExpiresAt != nil {
+		t.Fatalf("tokens = %+v, %+v", first, other)
+	}
+
+	second, secondSecret, err := tokens.ReplaceServiceToken(t.Context(), client, "instance-1", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = tokens.Delete(context.Background(), owner, second.ID) })
+
+	if _, err := tokens.Authenticate(t.Context(), firstSecret); !errors.Is(err, ErrInvalidAPIToken) {
+		t.Errorf("replaced token still valid: err = %v", err)
+	}
+
+	for _, secret := range []string{secondSecret, otherSecret} {
+		if _, err := tokens.Authenticate(t.Context(), secret); err != nil {
+			t.Errorf("current token rejected: %v", err)
+		}
+	}
+
+	if _, _, err := tokens.ReplaceServiceToken(t.Context(), "", "instance-1", 0); err == nil {
+		t.Error("issued a token without a client")
+	}
+}

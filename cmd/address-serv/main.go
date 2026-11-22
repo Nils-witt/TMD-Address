@@ -91,6 +91,10 @@ func run() error {
 		return err
 	}
 
+	if err := startDiscovery(ctx, db, strings.TrimSpace(os.Getenv("AMQP_URL")), build); err != nil {
+		return err
+	}
+
 	handler := api.NewHandler(
 		api.Config{
 			OIDC:              oidc,
