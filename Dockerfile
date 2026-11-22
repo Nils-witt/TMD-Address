@@ -24,4 +24,6 @@ RUN CGO_ENABLED=0 go build \
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /out/address-serv /address-serv
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/address-serv", "healthcheck"]
 ENTRYPOINT ["/address-serv"]
