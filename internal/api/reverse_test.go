@@ -15,7 +15,7 @@ import (
 func TestHandleReverseGeocodeValidation(t *testing.T) {
 	t.Parallel()
 
-	handler := handleReverseGeocode(nil, nil)
+	handler := serveGin(handleReverseGeocode(nil, nil))
 
 	tests := []struct {
 		name  string
@@ -70,7 +70,7 @@ func TestHandleReverseGeocodeResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler := handleReverseGeocode(store.NewHouseNumberStore(db), store.NewGeoObjectStore(db))
+	handler := serveGin(handleReverseGeocode(store.NewHouseNumberStore(db), store.NewGeoObjectStore(db)))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/reverse?lat=50.7&lon=7.1&limit=3", nil)
 	rec := httptest.NewRecorder()

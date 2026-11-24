@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -81,7 +83,7 @@ func readOnlyTestHandler(t *testing.T, proxy ProxyAuthConfig) (http.Handler, rea
 		return s
 	}
 
-	return proxyAuthMiddleware(proxy)(authMiddleware(oidc, fakeAPITokens{}, nil)(requireReadAccess(inner))), iss
+	return serveGin(proxyAuthMiddleware(proxy), authMiddleware(oidc, fakeAPITokens{}, nil), requireReadAccess, gin.WrapH(inner)), iss
 }
 
 func TestReadOnlyIssuer(t *testing.T) {
@@ -217,8 +219,6 @@ func TestProxyAuth(t *testing.T) {
 func TestCORSMiddleware(t *testing.T) {
 	t.Parallel()
 
-	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-
 	tests := []struct {
 		name, allowed, origin, wantOrigin, wantCredentials string
 	}{
@@ -238,7 +238,7 @@ func TestCORSMiddleware(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			corsMiddleware(tt.allowed)(ok).ServeHTTP(rec, req)
+			serveGin(corsMiddleware(tt.allowed)).ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNoContent {
 				t.Fatalf("preflight status = %d, want %d", rec.Code, http.StatusNoContent)

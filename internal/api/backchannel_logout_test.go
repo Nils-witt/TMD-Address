@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/nils-witt/tmd-address/internal/logout"
@@ -96,7 +98,7 @@ func (f logoutFixture) logoutClaims() jwt.MapClaims {
 	}
 }
 
-func postLogout(t *testing.T, handler http.Handler, token string) *httptest.ResponseRecorder {
+func postLogout(t *testing.T, handler gin.HandlerFunc, token string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	form := url.Values{}
@@ -108,7 +110,7 @@ func postLogout(t *testing.T, handler http.Handler, token string) *httptest.Resp
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, r)
+	serveGin(handler).ServeHTTP(w, r)
 
 	return w
 }
@@ -209,8 +211,7 @@ func TestAuthMiddlewareRefusesRevokedTokens(t *testing.T) {
 	t.Parallel()
 
 	f := newLogoutFixture(t)
-	handler := authMiddleware(f.verifier, nil, fakeRevocations{subject: testSubject, sid: testSID})(
-		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	handler := serveGin(authMiddleware(f.verifier, nil, fakeRevocations{subject: testSubject, sid: testSID}))
 
 	access := func(sid string) string {
 		return f.sign(t, jwt.MapClaims{

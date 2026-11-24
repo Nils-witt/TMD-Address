@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 	"github.com/nils-witt/tmd-address/internal/store/storetest"
 )
@@ -20,7 +22,7 @@ func TestTransferHandlers_RejectBadRequests(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		handler http.HandlerFunc
+		handler gin.HandlerFunc
 		method  string
 		target  string
 		body    string
@@ -42,7 +44,7 @@ func TestTransferHandlers_RejectBadRequests(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.target, strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
 
-			tt.handler(rec, req)
+			serveGin(tt.handler).ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want %d (body %q)", rec.Code, http.StatusBadRequest, rec.Body.String())
@@ -78,7 +80,7 @@ func TestTransfer_ExportImportsIntoAnotherDatabase(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/export?manual=true", nil)
 	rec := httptest.NewRecorder()
-	handleExport(store.NewTransferStore(from))(rec, req)
+	serveGin(handleExport(store.NewTransferStore(from))).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("export status = %d (body %q)", rec.Code, rec.Body.String())
@@ -90,7 +92,7 @@ func TestTransfer_ExportImportsIntoAnotherDatabase(t *testing.T) {
 
 	req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/import", rec.Body)
 	rec = httptest.NewRecorder()
-	handleImport(store.NewTransferStore(to))(rec, req)
+	serveGin(handleImport(store.NewTransferStore(to))).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("import status = %d (body %q)", rec.Code, rec.Body.String())

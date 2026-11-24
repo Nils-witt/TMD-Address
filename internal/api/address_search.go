@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
@@ -14,8 +16,8 @@ const (
 	minAddressSearchLength    = 2
 )
 
-func registerAddressSearchRoutes(mux *http.ServeMux, houseNumbers *store.HouseNumberStore) {
-	mux.HandleFunc("GET /api/addresses/search", handleSearchAddresses(houseNumbers))
+func registerAddressSearchRoutes(rg gin.IRouter, houseNumbers *store.HouseNumberStore) {
+	get(rg, "/api/addresses/search", handleSearchAddresses(houseNumbers))
 }
 
 // parseAddressSearchLimit parses the limit query parameter, defaulting to
@@ -33,28 +35,28 @@ func parseAddressSearchLimit(v string) (int, bool) {
 	return limit, true
 }
 
-func handleSearchAddresses(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
+func handleSearchAddresses(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := c.Request.URL.Query()
 
 		q := store.ParseAddressQuery(query.Get("q"))
 		if len([]rune(strings.TrimSpace(q.Street))) < minAddressSearchLength {
-			writeError(w, http.StatusBadRequest, "q must name at least 2 characters of a street")
+			writeError(c, http.StatusBadRequest, "q must name at least 2 characters of a street")
 			return
 		}
 
 		limit, ok := parseAddressSearchLimit(query.Get("limit"))
 		if !ok {
-			writeError(w, http.StatusBadRequest, "limit must be between 1 and 50")
+			writeError(c, http.StatusBadRequest, "limit must be between 1 and 50")
 			return
 		}
 
-		matches, err := houseNumbers.SearchAddresses(r.Context(), q, limit)
+		matches, err := houseNumbers.SearchAddresses(c.Request.Context(), q, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, matches)
+		writeJSON(c, http.StatusOK, matches)
 	}
 }

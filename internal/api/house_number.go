@@ -6,55 +6,57 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/google/uuid"
 
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
-func registerHouseNumberRoutes(mux *http.ServeMux, houseNumbers *store.HouseNumberStore) {
-	mux.HandleFunc("POST /api/house-numbers", handleCreateHouseNumber(houseNumbers))
-	mux.HandleFunc("GET /api/house-numbers", handleListHouseNumbers(houseNumbers))
-	mux.HandleFunc("GET /api/house-numbers/{id}", handleGetHouseNumber(houseNumbers))
-	mux.HandleFunc("PUT /api/house-numbers/{id}", handleUpdateHouseNumber(houseNumbers))
-	mux.HandleFunc("DELETE /api/house-numbers/{id}", handleDeleteHouseNumber(houseNumbers))
+func registerHouseNumberRoutes(rg gin.IRouter, houseNumbers *store.HouseNumberStore) {
+	rg.POST("/api/house-numbers", handleCreateHouseNumber(houseNumbers))
+	get(rg, "/api/house-numbers", handleListHouseNumbers(houseNumbers))
+	get(rg, "/api/house-numbers/:id", handleGetHouseNumber(houseNumbers))
+	rg.PUT("/api/house-numbers/:id", handleUpdateHouseNumber(houseNumbers))
+	rg.DELETE("/api/house-numbers/:id", handleDeleteHouseNumber(houseNumbers))
 }
 
-func handleCreateHouseNumber(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleCreateHouseNumber(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var h store.HouseNumber
-		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid JSON body")
+		if err := json.NewDecoder(c.Request.Body).Decode(&h); err != nil {
+			writeError(c, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
 
 		if err := h.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		created, err := houseNumbers.Create(r.Context(), h)
+		created, err := houseNumbers.Create(c.Request.Context(), h)
 		if errors.Is(err, store.ErrStreetNotFound) {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		if errors.Is(err, store.ErrHouseNumberAlreadyExists) {
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, created)
+		writeJSON(c, http.StatusCreated, created)
 	}
 }
 
-func handleListHouseNumbers(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
+func handleListHouseNumbers(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := c.Request.URL.Query()
 
 		filter := store.HouseNumberFilter{
 			Postcode:   query.Get("postcode"),
@@ -67,7 +69,7 @@ func handleListHouseNumbers(houseNumbers *store.HouseNumberStore) http.HandlerFu
 		if v := query.Get("streetId"); v != "" {
 			id, err := uuid.Parse(v)
 			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid streetId")
+				writeError(c, http.StatusBadRequest, "invalid streetId")
 				return
 			}
 
@@ -77,116 +79,116 @@ func handleListHouseNumbers(houseNumbers *store.HouseNumberStore) http.HandlerFu
 		if v := query.Get("number"); v != "" {
 			n, err := strconv.Atoi(v)
 			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid number")
+				writeError(c, http.StatusBadRequest, "invalid number")
 				return
 			}
 
 			filter.Number = &n
 		}
 
-		list, err := houseNumbers.List(r.Context(), filter)
+		list, err := houseNumbers.List(c.Request.Context(), filter)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, list)
+		writeJSON(c, http.StatusOK, list)
 	}
 }
 
 //nolint:dupl // mirrors the get/update/delete street handlers; distinct entity types make a shared generic handler less readable than the duplication
-func handleGetHouseNumber(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := idFromRequest(r)
+func handleGetHouseNumber(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := idFromRequest(c)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid id")
+			writeError(c, http.StatusBadRequest, "invalid id")
 			return
 		}
 
-		h, err := houseNumbers.Get(r.Context(), id)
+		h, err := houseNumbers.Get(c.Request.Context(), id)
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "house number not found")
+			writeError(c, http.StatusNotFound, "house number not found")
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, h)
+		writeJSON(c, http.StatusOK, h)
 	}
 }
 
-func handleUpdateHouseNumber(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := idFromRequest(r)
+func handleUpdateHouseNumber(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := idFromRequest(c)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid id")
+			writeError(c, http.StatusBadRequest, "invalid id")
 			return
 		}
 
 		var h store.HouseNumber
-		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid JSON body")
+		if err := json.NewDecoder(c.Request.Body).Decode(&h); err != nil {
+			writeError(c, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
 
 		if err := h.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		updated, err := houseNumbers.Update(r.Context(), id, h)
+		updated, err := houseNumbers.Update(c.Request.Context(), id, h)
 		if errors.Is(err, store.ErrStreetNotFound) {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		if errors.Is(err, store.ErrHouseNumberAlreadyExists) || errors.Is(err, store.ErrOwnedByCollector) {
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 			return
 		}
 
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "house number not found")
+			writeError(c, http.StatusNotFound, "house number not found")
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, updated)
+		writeJSON(c, http.StatusOK, updated)
 	}
 }
 
 //nolint:dupl // mirrors handleDeleteStreet and handleDeleteGeoObject; distinct entity types make a shared generic handler less readable than the duplication
-func handleDeleteHouseNumber(houseNumbers *store.HouseNumberStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := idFromRequest(r)
+func handleDeleteHouseNumber(houseNumbers *store.HouseNumberStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := idFromRequest(c)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid id")
+			writeError(c, http.StatusBadRequest, "invalid id")
 			return
 		}
 
-		err = houseNumbers.Delete(r.Context(), id)
+		err = houseNumbers.Delete(c.Request.Context(), id)
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "house number not found")
+			writeError(c, http.StatusNotFound, "house number not found")
 			return
 		}
 
 		if errors.Is(err, store.ErrOwnedByCollector) {
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		c.Status(http.StatusNoContent)
 	}
 }

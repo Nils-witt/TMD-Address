@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
@@ -22,9 +24,9 @@ const (
 	transferTimeout = 5 * time.Minute
 )
 
-func registerTransferRoutes(mux *http.ServeMux, transfer *store.TransferStore) {
-	mux.HandleFunc("GET /api/export", handleExport(transfer))
-	mux.HandleFunc("POST /api/import", handleImport(transfer))
+func registerTransferRoutes(rg gin.IRouter, transfer *store.TransferStore) {
+	get(rg, "/api/export", handleExport(transfer))
+	rg.POST("/api/import", handleImport(transfer))
 }
 
 // sourceFilterFromQuery reads the manual and collector parameters shared by
@@ -54,32 +56,32 @@ func sourceFilterFromQuery(query url.Values) (store.SourceFilter, error) {
 
 // extendDeadlines gives a transfer longer than the server's timeouts. The
 // error is ignored: a writer that can't change them keeps the server's.
-func extendDeadlines(w http.ResponseWriter) {
-	rc := http.NewResponseController(w)
+func extendDeadlines(c *gin.Context) {
+	rc := http.NewResponseController(c.Writer)
 	deadline := time.Now().Add(transferTimeout)
 	_ = rc.SetReadDeadline(deadline)
 	_ = rc.SetWriteDeadline(deadline)
 }
 
-func handleExport(transfer *store.TransferStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		filter, err := sourceFilterFromQuery(r.URL.Query())
+func handleExport(transfer *store.TransferStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		filter, err := sourceFilterFromQuery(c.Request.URL.Query())
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		extendDeadlines(w)
+		extendDeadlines(c)
 
-		doc, err := transfer.Export(r.Context(), filter)
+		doc, err := transfer.Export(c.Request.Context(), filter)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		name := "address-serv-export-" + doc.ExportedAt.Format("20060102-150405") + ".json"
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
-		writeJSON(w, http.StatusOK, doc)
+		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
+		writeJSON(c, http.StatusOK, doc)
 	}
 }
 
@@ -110,54 +112,54 @@ func importOptionsFromQuery(query url.Values) (store.ImportOptions, error) {
 	return opts, nil
 }
 
-func handleImport(transfer *store.TransferStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		opts, err := importOptionsFromQuery(r.URL.Query())
+func handleImport(transfer *store.TransferStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		opts, err := importOptionsFromQuery(c.Request.URL.Query())
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		extendDeadlines(w)
+		extendDeadlines(c)
 
 		var doc store.Export
 
-		r.Body = http.MaxBytesReader(w, r.Body, maxImportBytes)
-		if err := json.NewDecoder(r.Body).Decode(&doc); err != nil {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImportBytes)
+		if err := json.NewDecoder(c.Request.Body).Decode(&doc); err != nil {
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-				writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("the document must be at most %d bytes", maxImportBytes))
+				writeError(c, http.StatusRequestEntityTooLarge, fmt.Sprintf("the document must be at most %d bytes", maxImportBytes))
 				return
 			}
 
-			writeError(w, http.StatusBadRequest, "invalid JSON body")
+			writeError(c, http.StatusBadRequest, "invalid JSON body")
 
 			return
 		}
 
 		if err := doc.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		result, err := transfer.Import(r.Context(), doc, opts)
+		result, err := transfer.Import(c.Request.Context(), doc, opts)
 		if err != nil {
-			writeImportError(w, err)
+			writeImportError(c, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, result)
+		writeJSON(c, http.StatusOK, result)
 	}
 }
 
 // writeImportError writes the response for an error returned by Import: the
 // document conflicts with stored rows, or the import failed.
-func writeImportError(w http.ResponseWriter, err error) {
+func writeImportError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, store.ErrNameTaken), errors.Is(err, store.ErrExternalIDTaken),
 		errors.Is(err, store.ErrStreetAlreadyExists), errors.Is(err, store.ErrHouseNumberAlreadyExists),
 		errors.Is(err, store.ErrGeoObjectMatchedTwice):
-		writeError(w, http.StatusConflict, err.Error())
+		writeError(c, http.StatusConflict, err.Error())
 	default:
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(c, http.StatusInternalServerError, err.Error())
 	}
 }

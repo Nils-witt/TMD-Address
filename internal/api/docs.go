@@ -3,6 +3,8 @@ package api
 import (
 	_ "embed"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 //go:embed openapi.yaml
@@ -29,16 +31,14 @@ const docsPageHTML = `<!doctype html>
 </body>
 </html>`
 
-// registerDocsRoutes serves Swagger UI and the OpenAPI spec on mux, which is
-// served without the auth middleware so the docs are publicly readable.
-func registerDocsRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /docs", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(docsPageHTML))
+// registerDocsRoutes serves Swagger UI and the OpenAPI spec outside the auth
+// middleware, so the docs are publicly readable.
+func registerDocsRoutes(rg gin.IRouter) {
+	get(rg, "/docs", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(docsPageHTML))
 	})
 
-	mux.HandleFunc("GET /docs/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/yaml")
-		_, _ = w.Write(openapiSpec)
+	get(rg, "/docs/openapi.yaml", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/yaml", openapiSpec)
 	})
 }

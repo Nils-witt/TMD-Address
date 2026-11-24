@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/nils-witt/tmd-address/internal/logout"
@@ -87,39 +89,39 @@ func logoutFromClaims(claims jwt.MapClaims) (logout.Logout, error) {
 // session there ends; the logout token is the only authentication. As the
 // spec requires, it answers 200 or 400 with an OAuth-style JSON error,
 // neither cacheable.
-func handleBackchannelLogout(verifier *OIDCVerifier, logouts LogoutReceiver) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
+func handleBackchannelLogout(verifier *OIDCVerifier, logouts LogoutReceiver) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Cache-Control", "no-store")
 
-		r.Body = http.MaxBytesReader(w, r.Body, maxLogoutRequestBytes)
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxLogoutRequestBytes)
 
-		rawToken := r.PostFormValue("logout_token")
+		rawToken := c.Request.PostFormValue("logout_token")
 		if rawToken == "" {
-			writeLogoutError(w, "invalid_request", "missing logout_token")
+			writeLogoutError(c, "invalid_request", "missing logout_token")
 			return
 		}
 
 		l, err := verifier.VerifyLogoutToken(rawToken)
 		if err != nil {
 			log.Printf("back-channel logout token rejected: %v", err)
-			writeLogoutError(w, "invalid_request", "invalid logout_token")
+			writeLogoutError(c, "invalid_request", "invalid logout_token")
 
 			return
 		}
 
-		if err := logouts.BackchannelLogout(r.Context(), l); err != nil {
+		if err := logouts.BackchannelLogout(c.Request.Context(), l); err != nil {
 			log.Printf("back-channel logout failed: %v", err)
-			writeLogoutError(w, "server_error", "the logout could not be applied")
+			writeLogoutError(c, "server_error", "the logout could not be applied")
 
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		c.Status(http.StatusOK)
 	}
 }
 
-func writeLogoutError(w http.ResponseWriter, code, description string) {
-	writeJSON(w, http.StatusBadRequest, map[string]string{"error": code, "error_description": description})
+func writeLogoutError(c *gin.Context, code, description string) {
+	writeJSON(c, http.StatusBadRequest, map[string]string{"error": code, "error_description": description})
 }
 
 // tokenRevoked reports whether a back-channel logout revoked the OIDC token

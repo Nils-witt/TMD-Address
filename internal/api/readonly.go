@@ -1,12 +1,13 @@
 package api
 
 import (
-	"context"
 	"net/http"
 	"net/netip"
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // readOnlyRoutes are the path prefixes a read-only principal may GET: the
@@ -28,8 +29,8 @@ func readOnlyAllowed(r *http.Request) bool {
 		return false
 	}
 
-	// Cleaned as ServeMux will, so "/api/streets/../tokens" counts as
-	// "/api/tokens".
+	// Cleaned, so "/api/streets/../tokens" counts as "/api/tokens" even
+	// though the router would not match it.
 	p := path.Clean(r.URL.Path)
 	if p == "/healthz" {
 		return true
@@ -42,15 +43,10 @@ func readOnlyAllowed(r *http.Request) bool {
 
 // requireReadAccess answers 403 to a read-only principal's requests other
 // than looking addresses up.
-func requireReadAccess(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if p, ok := principalFrom(r.Context()); ok && p.ReadOnly && !readOnlyAllowed(r) {
-			writeError(w, http.StatusForbidden, "this token may only look addresses up")
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+func requireReadAccess(c *gin.Context) {
+	if p, ok := principalFrom(c.Request.Context()); ok && p.ReadOnly && !readOnlyAllowed(c.Request) {
+		writeError(c, http.StatusForbidden, "this token may only look addresses up")
+	}
 }
 
 // ProxyAuthConfig configures authentication by a reverse proxy, such as one
@@ -79,31 +75,26 @@ func (c ProxyAuthConfig) trusted(remoteAddr string) bool {
 // proxyAuthMiddleware authenticates a request without a bearer token as the
 // client a trusted proxy names in cfg.Header, read-only. The header is
 // dropped from other peers, so it cannot be forged around the proxy.
-func proxyAuthMiddleware(cfg ProxyAuthConfig) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
+func proxyAuthMiddleware(cfg ProxyAuthConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		if cfg.Header == "" {
-			return next
+			return
 		}
 
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !cfg.trusted(r.RemoteAddr) {
-				r.Header.Del(cfg.Header)
-				next.ServeHTTP(w, r)
+		r := c.Request
+		if !cfg.trusted(r.RemoteAddr) {
+			r.Header.Del(cfg.Header)
+			return
+		}
 
-				return
-			}
+		// A bearer token says more than the proxy: it may grant writes.
+		_, wsToken := webSocketToken(r)
 
-			// A bearer token says more than the proxy: it may grant writes.
-			_, wsToken := webSocketToken(r)
+		name := strings.TrimSpace(r.Header.Get(cfg.Header))
+		if name == "" || r.Header.Get("Authorization") != "" || wsToken {
+			return
+		}
 
-			name := strings.TrimSpace(r.Header.Get(cfg.Header))
-			if name == "" || r.Header.Get("Authorization") != "" || wsToken {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			p := principal{Subject: name, Name: name, ReadOnly: true}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalContextKey, p)))
-		})
+		setPrincipal(c, principal{Subject: name, Name: name, ReadOnly: true})
 	}
 }

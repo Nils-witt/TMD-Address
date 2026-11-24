@@ -2,36 +2,20 @@ package api
 
 import (
 	"log"
-	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
+// loggingMiddleware logs each request with its status and duration, in the
+// format the service logged before it moved to Gin.
+func loggingMiddleware(c *gin.Context) {
+	start := time.Now()
 
-func (r *statusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
+	c.Next()
 
-// Unwrap lets http.ResponseController reach the connection, to change
-// deadlines or hijack it for a WebSocket.
-func (r *statusRecorder) Unwrap() http.ResponseWriter {
-	return r.ResponseWriter
-}
-
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-
-		next.ServeHTTP(rec, r)
-
-		method := strconv.Quote(r.Method)
-		path := strconv.Quote(r.URL.Path)
-		log.Printf("%s %s %d %s", method, path, rec.status, time.Since(start))
-	})
+	method := strconv.Quote(c.Request.Method)
+	path := strconv.Quote(c.Request.URL.Path)
+	log.Printf("%s %s %d %s", method, path, c.Writer.Status(), time.Since(start))
 }

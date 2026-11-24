@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
@@ -51,13 +53,13 @@ func newFakeProvider(t *testing.T, key *rsa.PrivateKey) *httptest.Server {
 	t.Cleanup(srv.Close)
 
 	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
+		writeTestJSON(w, map[string]string{
 			"issuer":   srv.URL,
 			"jwks_uri": srv.URL + "/jwks",
 		})
 	})
 	mux.HandleFunc("GET /jwks", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
+		writeTestJSON(w, map[string]any{
 			"keys": []map[string]string{{
 				"kty": "RSA",
 				"kid": testKID,
@@ -94,10 +96,10 @@ func TestAuthMiddleware(t *testing.T) {
 
 	tokens := fakeAPITokens{testAPIToken: {ID: uuid.New(), OwnerSub: testSubject, OwnerName: "User One"}}
 
-	handler := authMiddleware(oidc, tokens, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, _ := principalFrom(r.Context())
-		writeJSON(w, http.StatusOK, map[string]any{subClaim: p.Subject})
-	}))
+	handler := serveGin(authMiddleware(oidc, tokens, nil), func(c *gin.Context) {
+		p, _ := principalFrom(c.Request.Context())
+		writeJSON(c, http.StatusOK, map[string]any{subClaim: p.Subject})
+	})
 
 	validClaims := func() jwt.MapClaims {
 		return jwt.MapClaims{
@@ -233,9 +235,11 @@ func TestRequireTokenOwner(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/tokens", nil)
 			rec := httptest.NewRecorder()
 
-			if _, ok := requireTokenOwner(rec, req); ok {
-				rec.WriteHeader(http.StatusOK)
-			}
+			serveGin(func(c *gin.Context) {
+				if _, ok := requireTokenOwner(c); ok {
+					c.Status(http.StatusOK)
+				}
+			}).ServeHTTP(rec, req)
 
 			if rec.Code != tt.want {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.want)

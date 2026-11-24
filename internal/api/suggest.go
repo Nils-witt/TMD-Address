@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
@@ -16,35 +18,35 @@ const maxSuggestReverseLimit = 20
 // registerSuggestRoutes serves /api/suggest/*: what an address form
 // suggests while it is typed into, ranked and bounded for that. A browser
 // calls them directly, so they answer one request per field.
-func registerSuggestRoutes(mux *http.ServeMux, suggest *store.SuggestStore,
+func registerSuggestRoutes(rg gin.IRouter, suggest *store.SuggestStore,
 	houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore,
 ) {
-	mux.HandleFunc("GET /api/suggest/streets", suggestHandler(suggest.Streets))
-	mux.HandleFunc("GET /api/suggest/house-numbers", suggestHandler(suggest.HouseNumbers))
-	mux.HandleFunc("GET /api/suggest/cities", suggestHandler(suggest.Cities))
-	mux.HandleFunc("GET /api/suggest/districts", suggestHandler(suggest.Districts))
-	mux.HandleFunc("GET /api/suggest/geo-objects", suggestHandler(suggest.GeoObjects))
-	mux.HandleFunc("GET /api/suggest/reverse", handleSuggestReverse(houseNumbers, geoObjects))
+	get(rg, "/api/suggest/streets", suggestHandler(suggest.Streets))
+	get(rg, "/api/suggest/house-numbers", suggestHandler(suggest.HouseNumbers))
+	get(rg, "/api/suggest/cities", suggestHandler(suggest.Cities))
+	get(rg, "/api/suggest/districts", suggestHandler(suggest.Districts))
+	get(rg, "/api/suggest/geo-objects", suggestHandler(suggest.GeoObjects))
+	get(rg, "/api/suggest/reverse", handleSuggestReverse(houseNumbers, geoObjects))
 }
 
 // suggestHandler answers the JSON array list returns for the query's name,
 // street, city and district.
-func suggestHandler[T any](list func(context.Context, store.SuggestQuery) ([]T, error)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
+func suggestHandler[T any](list func(context.Context, store.SuggestQuery) ([]T, error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := c.Request.URL.Query()
 
-		found, err := list(r.Context(), store.SuggestQuery{
+		found, err := list(c.Request.Context(), store.SuggestQuery{
 			Name:     query.Get("name"),
 			Street:   query.Get("street"),
 			City:     query.Get("city"),
 			District: query.Get("district"),
 		})
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, found)
+		writeJSON(c, http.StatusOK, found)
 	}
 }
 
@@ -80,19 +82,19 @@ type suggestReverseGeoObject struct {
 // /api/reverse, the house numbers and geo objects nearest to lat/lon, each
 // nearest first and at most limit (default 1), but with their addresses
 // flattened as the other suggestions are.
-func handleSuggestReverse(houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
+func handleSuggestReverse(houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := c.Request.URL.Query()
 
 		lat, err := coordinateParam(query, "lat", 90)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		lon, err := coordinateParam(query, "lon", 180)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -100,24 +102,24 @@ func handleSuggestReverse(houseNumbers *store.HouseNumberStore, geoObjects *stor
 		if v := query.Get("limit"); v != "" {
 			limit, err = strconv.Atoi(v)
 			if err != nil || limit < 1 || limit > maxSuggestReverseLimit {
-				writeError(w, http.StatusBadRequest, fmt.Sprintf("limit must be an integer between 1 and %d", maxSuggestReverseLimit))
+				writeError(c, http.StatusBadRequest, fmt.Sprintf("limit must be an integer between 1 and %d", maxSuggestReverseLimit))
 				return
 			}
 		}
 
-		numbers, err := houseNumbers.Nearest(r.Context(), lat, lon, limit)
+		numbers, err := houseNumbers.Nearest(c.Request.Context(), lat, lon, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		objects, err := geoObjects.Nearest(r.Context(), lat, lon, limit)
+		objects, err := geoObjects.Nearest(c.Request.Context(), lat, lon, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, suggestReverse(numbers, objects))
+		writeJSON(c, http.StatusOK, suggestReverse(numbers, objects))
 	}
 }
 

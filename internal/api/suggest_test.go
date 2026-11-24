@@ -16,7 +16,7 @@ import (
 func TestHandleSuggestReverseValidation(t *testing.T) {
 	t.Parallel()
 
-	handler := handleSuggestReverse(nil, nil)
+	handler := serveGin(handleSuggestReverse(nil, nil))
 
 	tests := []struct{ name, query string }{
 		{"missing lat and lon", ""},
@@ -110,8 +110,8 @@ func TestSuggestRoutes(t *testing.T) {
 
 	t.Cleanup(func() { _ = streets.Delete(t.Context(), results[0].Street.ID) })
 
-	mux := http.NewServeMux()
-	registerSuggestRoutes(mux, store.NewSuggestStore(db), store.NewHouseNumberStore(db), store.NewGeoObjectStore(db))
+	routes := newEngine()
+	registerSuggestRoutes(routes, store.NewSuggestStore(db), store.NewHouseNumberStore(db), store.NewGeoObjectStore(db))
 
 	q := func(kv ...string) string {
 		v := url.Values{}
@@ -140,7 +140,7 @@ func TestSuggestRoutes(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
+			routes.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusOK, rec.Body)
