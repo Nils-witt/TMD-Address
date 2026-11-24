@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 // TestGeoObjectHandlers_RejectBadRequests checks the 400 responses served
@@ -21,7 +23,7 @@ func TestGeoObjectHandlers_RejectBadRequests(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		handler http.HandlerFunc
+		handler gin.HandlerFunc
 		method  string
 		target  string
 		body    string
@@ -51,7 +53,7 @@ func TestGeoObjectHandlers_RejectBadRequests(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.target, strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
 
-			tt.handler(rec, req)
+			serveGin(tt.handler).ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want %d (body %q)", rec.Code, http.StatusBadRequest, rec.Body.String())
@@ -60,11 +62,11 @@ func TestGeoObjectHandlers_RejectBadRequests(t *testing.T) {
 	}
 }
 
-// withPathValue returns h with the path value key set to value, as the mux
-// would for a matching route.
-func withPathValue(key, value string, h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.SetPathValue(key, value)
-		h(w, r)
+// withPathValue returns h with the path parameter key set to value, as the
+// router would for a matching route.
+func withPathValue(key, value string, h gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Params = append(c.Params, gin.Param{Key: key, Value: value})
+		h(c)
 	}
 }

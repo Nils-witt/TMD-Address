@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
@@ -54,46 +55,49 @@ type apiTokenAuthenticator interface {
 // issued by the configured OpenID Connect provider, or an API token (told
 // apart by store.APITokenPrefix). An OIDC token a back-channel logout revoked
 // (revoked, nil for none) is refused.
-func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator, revoked TokenRevocations) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Authenticated by a trusted proxy already.
-			if _, ok := principalFrom(r.Context()); ok {
-				next.ServeHTTP(w, r)
-				return
-			}
+func authMiddleware(verifier *OIDCVerifier, tokens apiTokenAuthenticator, revoked TokenRevocations) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Authenticated by a trusted proxy already.
+		if _, ok := principalFrom(c.Request.Context()); ok {
+			return
+		}
 
-			tokenString, err := bearerToken(r)
-			if err != nil {
-				writeError(w, http.StatusUnauthorized, err.Error())
-				return
-			}
+		tokenString, err := bearerToken(c.Request)
+		if err != nil {
+			writeError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
 
-			var p principal
-			if strings.HasPrefix(tokenString, store.APITokenPrefix) {
-				p, err = apiTokenPrincipal(r.Context(), tokens, tokenString)
-			} else {
-				p, err = oidcPrincipal(verifier, tokenString)
-				if err == nil && tokenRevoked(revoked, p.Claims) {
-					err = errSignedOut
-				}
-				// The response does not say why a token was rejected, so the
-				// log has to, or a misconfigured issuer or audience looks
-				// like any bad token. Expiry is routine and left out.
-				if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
-					log.Printf("OIDC token rejected: %v", err)
-				}
+		var p principal
+		if strings.HasPrefix(tokenString, store.APITokenPrefix) {
+			p, err = apiTokenPrincipal(c.Request.Context(), tokens, tokenString)
+		} else {
+			p, err = oidcPrincipal(verifier, tokenString)
+			if err == nil && tokenRevoked(revoked, p.Claims) {
+				err = errSignedOut
 			}
-
-			if err != nil {
-				writeError(w, http.StatusUnauthorized, "invalid or expired token")
-				return
+			// The response does not say why a token was rejected, so the
+			// log has to, or a misconfigured issuer or audience looks
+			// like any bad token. Expiry is routine and left out.
+			if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
+				log.Printf("OIDC token rejected: %v", err)
 			}
+		}
 
-			ctx := context.WithValue(r.Context(), principalContextKey, p)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+		if err != nil {
+			writeError(c, http.StatusUnauthorized, "invalid or expired token")
+			return
+		}
+
+		setPrincipal(c, p)
 	}
+}
+
+// setPrincipal stores p in the request's context, where principalFrom finds
+// it. The request context rather than c.Set, so code given only a
+// context.Context, such as a store call, could see it too.
+func setPrincipal(c *gin.Context, p principal) {
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), principalContextKey, p))
 }
 
 func oidcPrincipal(verifier *OIDCVerifier, tokenString string) (principal, error) {

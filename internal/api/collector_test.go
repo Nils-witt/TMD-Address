@@ -66,9 +66,7 @@ func TestRequireAdminGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := requireAdminGroup(tt.group, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			}))
+			h := serveGin(requireAdminGroup(tt.group))
 
 			ctx := context.WithValue(t.Context(), principalContextKey, tt.p)
 			rec := httptest.NewRecorder()

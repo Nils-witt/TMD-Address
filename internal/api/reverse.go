@@ -7,14 +7,16 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 // maxReverseLimit caps the limit query parameter of GET /api/reverse.
 const maxReverseLimit = 100
 
-func registerReverseRoutes(mux *http.ServeMux, houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) {
-	mux.HandleFunc("GET /api/reverse", handleReverseGeocode(houseNumbers, geoObjects))
+func registerReverseRoutes(rg gin.IRouter, houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) {
+	get(rg, "/api/reverse", handleReverseGeocode(houseNumbers, geoObjects))
 }
 
 // reverseResult is the response of GET /api/reverse. Each list is ranked by
@@ -27,19 +29,19 @@ type reverseResult struct {
 // handleReverseGeocode serves GET /api/reverse: the house numbers and the geo
 // objects nearest to the lat/lon query parameters, each nearest first. limit
 // (default 1) sets how many of each are returned.
-func handleReverseGeocode(houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
+func handleReverseGeocode(houseNumbers *store.HouseNumberStore, geoObjects *store.GeoObjectStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := c.Request.URL.Query()
 
 		lat, err := coordinateParam(query, "lat", 90)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		lon, err := coordinateParam(query, "lon", 180)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -47,24 +49,24 @@ func handleReverseGeocode(houseNumbers *store.HouseNumberStore, geoObjects *stor
 		if v := query.Get("limit"); v != "" {
 			limit, err = strconv.Atoi(v)
 			if err != nil || limit < 1 || limit > maxReverseLimit {
-				writeError(w, http.StatusBadRequest, fmt.Sprintf("limit must be an integer between 1 and %d", maxReverseLimit))
+				writeError(c, http.StatusBadRequest, fmt.Sprintf("limit must be an integer between 1 and %d", maxReverseLimit))
 				return
 			}
 		}
 
-		nearbyHouseNumbers, err := houseNumbers.Nearest(r.Context(), lat, lon, limit)
+		nearbyHouseNumbers, err := houseNumbers.Nearest(c.Request.Context(), lat, lon, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		nearbyGeoObjects, err := geoObjects.Nearest(r.Context(), lat, lon, limit)
+		nearbyGeoObjects, err := geoObjects.Nearest(c.Request.Context(), lat, lon, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, reverseResult{HouseNumbers: nearbyHouseNumbers, GeoObjects: nearbyGeoObjects})
+		writeJSON(c, http.StatusOK, reverseResult{HouseNumbers: nearbyHouseNumbers, GeoObjects: nearbyGeoObjects})
 	}
 }
 

@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 // UIConfig is what the web UI needs to know before anyone has signed in:
@@ -25,12 +27,15 @@ type UIOIDCConfig struct {
 }
 
 // registerUIRoutes mounts the SPA under /ui/ and its public config endpoint
-// on mux, which is served without the auth middleware: the UI has to load
-// before the user can sign in. "/" redirects to the UI.
-func registerUIRoutes(mux *http.ServeMux, ui http.Handler, cfg UIConfig) {
-	mux.Handle("/ui/", http.StripPrefix("/ui", ui))
-	mux.HandleFunc("GET /ui-config", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, cfg)
+// outside the auth middleware: the UI has to load before the user can sign
+// in. "/" and "/ui" redirect to the UI.
+func registerUIRoutes(rg gin.IRouter, ui http.Handler, cfg UIConfig) {
+	rg.Any("/ui/*filepath", gin.WrapH(http.StripPrefix("/ui", ui)))
+	get(rg, "/ui-config", func(c *gin.Context) {
+		writeJSON(c, http.StatusOK, cfg)
 	})
-	mux.Handle("GET /{$}", http.RedirectHandler("/ui/", http.StatusFound))
+
+	redirect := func(c *gin.Context) { c.Redirect(http.StatusFound, "/ui/") }
+	get(rg, "/", redirect)
+	get(rg, "/ui", redirect)
 }

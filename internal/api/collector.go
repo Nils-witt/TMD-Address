@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/google/uuid"
 
 	"github.com/nils-witt/tmd-address/internal/collector"
@@ -34,24 +36,20 @@ const (
 	reloadWriteTimeout = collector.DescribeTimeout + 10*time.Second
 )
 
-func registerCollectorRoutes(mux *http.ServeMux, cfg CollectorConfig) {
-	routes := map[string]http.HandlerFunc{
-		"GET /api/collectors":                     handleListCollectors(cfg.Store),
-		"POST /api/collectors/reload":             handleReloadCollectors(cfg),
-		"GET /api/collectors/{id}":                handleGetCollector(cfg.Store),
-		"PUT /api/collectors/{id}/settings":       handleUpdateCollectorSettings(cfg.Store),
-		"PUT /api/collectors/{id}/schedule":       handleUpdateCollectorSchedule(cfg.Store),
-		"DELETE /api/collectors/{id}":             handleDeleteCollector(cfg.Store),
-		"POST /api/collectors/{id}/runs":          handleStartRun(cfg.Runner),
-		"GET /api/collectors/{id}/runs":           handleListRuns(cfg.Store),
-		"GET /api/collector-runs/{runId}":         handleGetRun(cfg.Store),
-		"POST /api/collector-runs/{runId}/cancel": handleCancelRun(cfg),
-		"GET /api/collector-events":               handleCollectorEvents(cfg.Runner, cfg.Revocations),
-	}
+func registerCollectorRoutes(rg gin.IRouter, cfg CollectorConfig) {
+	admin := rg.Group("", requireAdminGroup(cfg.AdminGroup))
 
-	for pattern, h := range routes {
-		mux.Handle(pattern, requireAdminGroup(cfg.AdminGroup, h))
-	}
+	get(admin, "/api/collectors", handleListCollectors(cfg.Store))
+	admin.POST("/api/collectors/reload", handleReloadCollectors(cfg))
+	get(admin, "/api/collectors/:id", handleGetCollector(cfg.Store))
+	admin.PUT("/api/collectors/:id/settings", handleUpdateCollectorSettings(cfg.Store))
+	admin.PUT("/api/collectors/:id/schedule", handleUpdateCollectorSchedule(cfg.Store))
+	admin.DELETE("/api/collectors/:id", handleDeleteCollector(cfg.Store))
+	admin.POST("/api/collectors/:id/runs", handleStartRun(cfg.Runner))
+	get(admin, "/api/collectors/:id/runs", handleListRuns(cfg.Store))
+	get(admin, "/api/collector-runs/:runId", handleGetRun(cfg.Store))
+	admin.POST("/api/collector-runs/:runId/cancel", handleCancelRun(cfg))
+	get(admin, "/api/collector-events", handleCollectorEvents(cfg.Runner, cfg.Revocations))
 }
 
 // collectorView is a collector as the API shows it: settings without the
@@ -90,10 +88,10 @@ func newCollectorView(c store.Collector, lastRun *store.CollectorRun) collectorV
 	return v
 }
 
-func writeCollectorList(w http.ResponseWriter, r *http.Request, cs *store.CollectorStore, collectors []store.Collector) {
-	lastRuns, err := cs.LastRuns(r.Context())
+func writeCollectorList(c *gin.Context, cs *store.CollectorStore, collectors []store.Collector) {
+	lastRuns, err := cs.LastRuns(c.Request.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -108,83 +106,83 @@ func writeCollectorList(w http.ResponseWriter, r *http.Request, cs *store.Collec
 		views[i] = newCollectorView(c, last)
 	}
 
-	writeJSON(w, http.StatusOK, views)
+	writeJSON(c, http.StatusOK, views)
 }
 
-func handleListCollectors(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		collectors, err := cs.List(r.Context())
+func handleListCollectors(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		collectors, err := cs.List(c.Request.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeCollectorList(w, r, cs, collectors)
+		writeCollectorList(c, cs, collectors)
 	}
 }
 
-func handleReloadCollectors(cfg CollectorConfig) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(reloadWriteTimeout))
+func handleReloadCollectors(cfg CollectorConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(reloadWriteTimeout))
 
-		collectors, err := cfg.Runner.Reload(r.Context())
+		collectors, err := cfg.Runner.Reload(c.Request.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeCollectorList(w, r, cfg.Store, collectors)
+		writeCollectorList(c, cfg.Store, collectors)
 	}
 }
 
 // writeCollector writes the collector with the given ID, or a 404.
-func writeCollector(w http.ResponseWriter, r *http.Request, cs *store.CollectorStore, c store.Collector, err error) {
+func writeCollector(c *gin.Context, cs *store.CollectorStore, col store.Collector, err error) {
 	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "collector not found")
+		writeError(c, http.StatusNotFound, "collector not found")
 		return
 	}
 
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	lastRuns, err := cs.LastRuns(r.Context())
+	lastRuns, err := cs.LastRuns(c.Request.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	var last *store.CollectorRun
-	if run, ok := lastRuns[c.ID]; ok {
+	if run, ok := lastRuns[col.ID]; ok {
 		last = &run
 	}
 
-	writeJSON(w, http.StatusOK, newCollectorView(c, last))
+	writeJSON(c, http.StatusOK, newCollectorView(col, last))
 }
 
-func handleGetCollector(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		c, err := cs.Get(r.Context(), r.PathValue("id"))
-		writeCollector(w, r, cs, c, err)
+func handleGetCollector(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		col, err := cs.Get(c.Request.Context(), c.Param("id"))
+		writeCollector(c, cs, col, err)
 	}
 }
 
-func handleUpdateCollectorSettings(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleUpdateCollectorSettings(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var input store.SettingsInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input == nil {
-			writeError(w, http.StatusBadRequest, "body must be a JSON object of settings")
+		if err := json.NewDecoder(c.Request.Body).Decode(&input); err != nil || input == nil {
+			writeError(c, http.StatusBadRequest, "body must be a JSON object of settings")
 			return
 		}
 
-		c, err := cs.UpdateSettings(r.Context(), r.PathValue("id"), input)
+		col, err := cs.UpdateSettings(c.Request.Context(), c.Param("id"), input)
 		if errors.Is(err, store.ErrInvalidSettings) {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		writeCollector(w, r, cs, c, err)
+		writeCollector(c, cs, col, err)
 	}
 }
 
@@ -193,152 +191,152 @@ type scheduleInput struct {
 	Schedule *string `json:"schedule"`
 }
 
-func handleUpdateCollectorSchedule(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleUpdateCollectorSchedule(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var input scheduleInput
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Schedule == nil {
-			writeError(w, http.StatusBadRequest, `body must be {"schedule": "<cron expression>"}, empty to remove it`)
+		if err := json.NewDecoder(c.Request.Body).Decode(&input); err != nil || input.Schedule == nil {
+			writeError(c, http.StatusBadRequest, `body must be {"schedule": "<cron expression>"}, empty to remove it`)
 			return
 		}
 
-		c, err := cs.UpdateSchedule(r.Context(), r.PathValue("id"), *input.Schedule)
+		col, err := cs.UpdateSchedule(c.Request.Context(), c.Param("id"), *input.Schedule)
 		if errors.Is(err, store.ErrInvalidSchedule) {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		writeCollector(w, r, cs, c, err)
+		writeCollector(c, cs, col, err)
 	}
 }
 
-func handleDeleteCollector(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		deleteData, err := optionalBool(r, "deleteData")
+func handleDeleteCollector(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		deleteData, err := optionalBool(c, "deleteData")
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		err = cs.Delete(r.Context(), r.PathValue("id"), deleteData)
+		err = cs.Delete(c.Request.Context(), c.Param("id"), deleteData)
 
 		switch {
 		case errors.Is(err, store.ErrNotFound):
-			writeError(w, http.StatusNotFound, "collector not found")
+			writeError(c, http.StatusNotFound, "collector not found")
 		case errors.Is(err, store.ErrCollectorAvailable), errors.Is(err, store.ErrRunActive):
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 		case err != nil:
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 		default:
-			w.WriteHeader(http.StatusNoContent)
+			c.Status(http.StatusNoContent)
 		}
 	}
 }
 
-func handleStartRun(runner *collector.Runner) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		p, _ := principalFrom(r.Context())
+func handleStartRun(runner *collector.Runner) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, _ := principalFrom(c.Request.Context())
 
-		run, err := runner.Start(r.Context(), r.PathValue("id"), p.Name)
+		run, err := runner.Start(c.Request.Context(), c.Param("id"), p.Name)
 
 		var missing *collector.MissingSettingsError
 
 		switch {
 		case errors.Is(err, store.ErrNotFound):
-			writeError(w, http.StatusNotFound, "collector not found")
+			writeError(c, http.StatusNotFound, "collector not found")
 		case errors.As(err, &missing):
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 		case errors.Is(err, collector.ErrUnavailable), errors.Is(err, store.ErrRunActive):
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 		case err != nil:
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 		default:
-			writeJSON(w, http.StatusAccepted, run)
+			writeJSON(c, http.StatusAccepted, run)
 		}
 	}
 }
 
-func handleListRuns(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		limit, offset, err := pagination(r)
+func handleListRuns(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		limit, offset, err := pagination(c)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		id := r.PathValue("id")
-		if _, err := cs.Get(r.Context(), id); errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "collector not found")
+		id := c.Param("id")
+		if _, err := cs.Get(c.Request.Context(), id); errors.Is(err, store.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "collector not found")
 			return
 		}
 
-		runs, err := cs.ListRuns(r.Context(), id, limit, offset)
+		runs, err := cs.ListRuns(c.Request.Context(), id, limit, offset)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, runs)
+		writeJSON(c, http.StatusOK, runs)
 	}
 }
 
-func handleGetRun(cs *store.CollectorStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("runId"))
+func handleGetRun(cs *store.CollectorStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("runId"))
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid run id")
+			writeError(c, http.StatusBadRequest, "invalid run id")
 			return
 		}
 
-		run, err := cs.GetRun(r.Context(), id)
+		run, err := cs.GetRun(c.Request.Context(), id)
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "run not found")
+			writeError(c, http.StatusNotFound, "run not found")
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, run)
+		writeJSON(c, http.StatusOK, run)
 	}
 }
 
-func handleCancelRun(cfg CollectorConfig) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("runId"))
+func handleCancelRun(cfg CollectorConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("runId"))
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid run id")
+			writeError(c, http.StatusBadRequest, "invalid run id")
 			return
 		}
 
 		if err := cfg.Runner.Cancel(id); errors.Is(err, collector.ErrRunNotActive) {
-			if _, err := cfg.Store.GetRun(r.Context(), id); errors.Is(err, store.ErrNotFound) {
-				writeError(w, http.StatusNotFound, "run not found")
+			if _, err := cfg.Store.GetRun(c.Request.Context(), id); errors.Is(err, store.ErrNotFound) {
+				writeError(c, http.StatusNotFound, "run not found")
 				return
 			}
 
-			writeError(w, http.StatusConflict, err.Error())
+			writeError(c, http.StatusConflict, err.Error())
 
 			return
 		}
 
-		w.WriteHeader(http.StatusAccepted)
+		c.Status(http.StatusAccepted)
 	}
 }
 
 // pagination reads the limit and offset query parameters.
-func pagination(r *http.Request) (limit, offset int, err error) {
+func pagination(c *gin.Context) (limit, offset int, err error) {
 	limit, offset = defaultRunsLimit, 0
 
-	if s := r.URL.Query().Get("limit"); s != "" {
+	if s := c.Query("limit"); s != "" {
 		limit, err = strconv.Atoi(s)
 		if err != nil || limit < 1 || limit > maxRunsLimit {
 			return 0, 0, errors.New("limit must be between 1 and 100")
 		}
 	}
 
-	if s := r.URL.Query().Get("offset"); s != "" {
+	if s := c.Query("offset"); s != "" {
 		offset, err = strconv.Atoi(s)
 		if err != nil || offset < 0 {
 			return 0, 0, errors.New("offset must be a non-negative integer")
@@ -349,8 +347,8 @@ func pagination(r *http.Request) (limit, offset int, err error) {
 }
 
 // optionalBool reads a query parameter that is absent, "true" or "false".
-func optionalBool(r *http.Request, key string) (bool, error) {
-	s := r.URL.Query().Get(key)
+func optionalBool(c *gin.Context, key string) (bool, error) {
+	s := c.Query(key)
 	if s == "" {
 		return false, nil
 	}

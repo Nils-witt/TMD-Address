@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
@@ -71,15 +73,15 @@ func webSocketToken(r *http.Request) (string, bool) {
 // handleCollectorEvents pushes run updates over a WebSocket, so the UI can
 // follow runs without polling. Updates missed while disconnected are not
 // replayed: a client reloads the runs whenever it (re)connects.
-func handleCollectorEvents(runner *collector.Runner, revoked TokenRevocations) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func handleCollectorEvents(runner *collector.Runner, revoked TokenRevocations) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		// The server's read and write timeouts are meant for one request,
 		// not for a connection that stays open.
-		rc := http.NewResponseController(w)
+		rc := http.NewResponseController(c.Writer)
 		_ = rc.SetReadDeadline(time.Time{})
 		_ = rc.SetWriteDeadline(time.Time{})
 
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
 			Subprotocols: []string{eventsProtocol},
 			// Origin checks guard against pages riding on credentials the
 			// browser adds by itself, such as cookies. The token here is
@@ -98,9 +100,9 @@ func handleCollectorEvents(runner *collector.Runner, revoked TokenRevocations) h
 		}
 
 		// The client sends nothing; reading only handles its pongs and close.
-		ctx := conn.CloseRead(r.Context())
+		ctx := conn.CloseRead(c.Request.Context())
 
-		p, _ := principalFrom(r.Context())
+		p, _ := principalFrom(c.Request.Context())
 		if exp, err := p.Claims.GetExpirationTime(); err == nil && exp != nil {
 			var cancel context.CancelFunc
 

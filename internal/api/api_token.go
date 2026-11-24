@@ -8,44 +8,46 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/nils-witt/tmd-address/internal/store"
 )
 
 const maxAPITokenNameLen = 100
 
-func registerAPITokenRoutes(mux *http.ServeMux, tokens *store.APITokenStore) {
-	mux.HandleFunc("GET /api/tokens", handleListAPITokens(tokens))
-	mux.HandleFunc("POST /api/tokens", handleCreateAPIToken(tokens))
-	mux.HandleFunc("DELETE /api/tokens/{id}", handleDeleteAPIToken(tokens))
+func registerAPITokenRoutes(rg gin.IRouter, tokens *store.APITokenStore) {
+	get(rg, "/api/tokens", handleListAPITokens(tokens))
+	rg.POST("/api/tokens", handleCreateAPIToken(tokens))
+	rg.DELETE("/api/tokens/:id", handleDeleteAPIToken(tokens))
 }
 
 // requireTokenOwner returns the principal allowed to manage API tokens, or
 // writes a 403 and returns false. Tokens are managed only from an OIDC
 // session, so a leaked API token can't be used to mint more of them.
-func requireTokenOwner(w http.ResponseWriter, r *http.Request) (principal, bool) {
-	p, ok := principalFrom(r.Context())
+func requireTokenOwner(c *gin.Context) (principal, bool) {
+	p, ok := principalFrom(c.Request.Context())
 	if !ok || p.APITokenID != nil || p.Subject == "" {
-		writeError(w, http.StatusForbidden, "API tokens can only be managed when signed in with OpenID Connect")
+		writeError(c, http.StatusForbidden, "API tokens can only be managed when signed in with OpenID Connect")
 		return principal{}, false
 	}
 
 	return p, true
 }
 
-func handleListAPITokens(tokens *store.APITokenStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		p, ok := requireTokenOwner(w, r)
+func handleListAPITokens(tokens *store.APITokenStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, ok := requireTokenOwner(c)
 		if !ok {
 			return
 		}
 
-		list, err := tokens.List(r.Context(), p.Subject)
+		list, err := tokens.List(c.Request.Context(), p.Subject)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, list)
+		writeJSON(c, http.StatusOK, list)
 	}
 }
 
@@ -78,58 +80,58 @@ type createdAPIToken struct {
 	Token string `json:"token"`
 }
 
-func handleCreateAPIToken(tokens *store.APITokenStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		p, ok := requireTokenOwner(w, r)
+func handleCreateAPIToken(tokens *store.APITokenStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, ok := requireTokenOwner(c)
 		if !ok {
 			return
 		}
 
 		var req createAPITokenRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid JSON body")
+		if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
+			writeError(c, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
 
 		if err := req.validate(time.Now()); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			writeError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		created, secret, err := tokens.Create(r.Context(), p.Subject, p.Name, req.Name, req.ExpiresAt)
+		created, secret, err := tokens.Create(c.Request.Context(), p.Subject, p.Name, req.Name, req.ExpiresAt)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, createdAPIToken{APIToken: created, Token: secret})
+		writeJSON(c, http.StatusCreated, createdAPIToken{APIToken: created, Token: secret})
 	}
 }
 
-func handleDeleteAPIToken(tokens *store.APITokenStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		p, ok := requireTokenOwner(w, r)
+func handleDeleteAPIToken(tokens *store.APITokenStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, ok := requireTokenOwner(c)
 		if !ok {
 			return
 		}
 
-		id, err := idFromRequest(r)
+		id, err := idFromRequest(c)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid id")
+			writeError(c, http.StatusBadRequest, "invalid id")
 			return
 		}
 
-		err = tokens.Delete(r.Context(), p.Subject, id)
+		err = tokens.Delete(c.Request.Context(), p.Subject, id)
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "API token not found")
+			writeError(c, http.StatusNotFound, "API token not found")
 			return
 		}
 
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		c.Status(http.StatusNoContent)
 	}
 }

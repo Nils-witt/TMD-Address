@@ -3,30 +3,30 @@ package api
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 // groupsClaim is the OIDC claim listing the groups a user is in, as Authentik
 // and Keycloak's group mapper send it.
 const groupsClaim = "groups"
 
-// requireAdminGroup wraps next so that only members of group reach it. With
+// requireAdminGroup lets only members of group past it. With
 // no group configured nobody does, and API tokens never do: they carry no
 // claims.
-func requireAdminGroup(group string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, _ := principalFrom(r.Context())
+func requireAdminGroup(group string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		p, _ := principalFrom(c.Request.Context())
 
 		switch {
 		case group == "":
-			writeError(w, http.StatusForbidden, "managing collectors is disabled: set COLLECTOR_ADMIN_GROUP")
+			writeError(c, http.StatusForbidden, "managing collectors is disabled: set COLLECTOR_ADMIN_GROUP")
 		case p.APITokenID != nil:
-			writeError(w, http.StatusForbidden, "API tokens cannot manage collectors")
+			writeError(c, http.StatusForbidden, "API tokens cannot manage collectors")
 		case !inGroup(p.Claims, group):
-			writeError(w, http.StatusForbidden, fmt.Sprintf("managing collectors requires membership in the group %q", group))
-		default:
-			next.ServeHTTP(w, r)
+			writeError(c, http.StatusForbidden, fmt.Sprintf("managing collectors requires membership in the group %q", group))
 		}
-	})
+	}
 }
 
 // inGroup reports whether the groups claim lists group. A single group sent
